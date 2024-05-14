@@ -1,0 +1,5 @@
+discord.py
+CurrencyConverter
+currency-converter
+aiofiles
+asyncio
