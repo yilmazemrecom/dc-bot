@@ -482,6 +482,20 @@ async def list_commands(ctx):
         "`!yazitura <bahis> <yazı/tura>`: Yazı tura oyunu oynar",
         "`!quiz`: Rastgele bir quiz sorusu sorar",
         "`!asmaca`: Adam asmaca oyunu oynar (üç beş yeri sorunlu ama genel mantık çalışıyor)",
+        "",
+        "**Takım Oyunu Komutları:**",
+        "Takım oyununda bir takım oluşturabilir, takımınıza yatırım yapabilir ve diğer takımlarla maç yapabilirsiniz.",
+        "Takımlar gerçek kişilerdir.",
+        "**Takım oyunu kuralları**",
+        "1. Her kullanıcı yalnızca bir takıma sahip olabilir",
+        "2. Takımınızın kasasına yatırım yaparak takımınızı güçlendirebilirsiniz",
+        "3. Takımınızla maç yaparak diğer takımlardan sikke kazanabilirsiniz aynı zamanda bahis miktarı*2 de kasanıza gelir",
+        "",
+        "`!takimolustur <takim_adi> <miktari>`: Yeni bir takım oluşturur",
+        "`!takimyatirim <miktari>`: Takımınıza yatırım yapar",
+        "`!macyap <bahis>`: Takımınızla maç yapar",
+        "`!takimim`: Takımınızı gösterir",
+
 
     ]
     await ctx.send('\n'.join(komutlar))
@@ -520,7 +534,191 @@ async def on_ready():
 
 
 
+# futbol oyunu
 
+
+@bot.command()
+async def takimolustur(ctx, takim_adi: str, miktari: int):
+    # Takım adı ve miktarı boş olamaz
+    if not takim_adi:
+        await ctx.send("Lütfen geçerli bir takım adı belirtin.")
+        return
+    if miktari <= 0:
+        await ctx.send("Lütfen geçerli bir miktar belirtin.")
+        return
+
+    # Kullanıcının bakiyesini kontrol et
+    economy = await add_user_to_economy(user_id=ctx.author.id, username=ctx.author.name)
+    bakiye = economy[str(ctx.author.id)]['bakiye']
+
+    # Kullanıcının yeterli bakiyesi var mı kontrol et
+    if bakiye < miktari:
+        await ctx.send("Yeterli bakiyeniz yok.")
+        return
+
+    # Takım oluştur
+    takimlar = {}
+    if os.path.exists('takimlar.json'):
+        async with aiofiles.open('takimlar.json', mode='r', encoding='utf-8') as f:
+            takimlar = json.loads(await f.read())
+
+    if str(ctx.author.id) in takimlar:
+        await ctx.send("Zaten bir takımınız var.")
+        return
+
+    takimlar[str(ctx.author.id)] = {
+        'takim_adi': takim_adi,
+        'kaptan': ctx.author.name,
+        'miktari': miktari,
+        'kazanilan_mac': 0,
+        'kaybedilen_mac': 0
+    }
+
+    async with aiofiles.open('takimlar.json', mode='w', encoding='utf-8') as f:
+        await f.write(json.dumps(takimlar, indent=4))
+
+    # Kullanıcının bakiyesinden miktarı düş
+    economy[str(ctx.author.id)]['bakiye'] -= miktari
+    await save_economy(economy)
+
+    await ctx.send(f"{ctx.author.mention}, '{takim_adi}' adında yeni bir takım oluşturdunuz ve {miktari} sikke harcadınız.")
+
+
+
+@bot.command()
+async def takimyatirim(ctx, miktar: int):
+    # Miktar geçerli mi kontrol et
+    if miktar <= 0:
+        await ctx.send("Lütfen geçerli bir miktar belirtin.")
+        return
+
+    # Kullanıcının bakiyesini kontrol et
+    economy = await add_user_to_economy(user_id=ctx.author.id, username=ctx.author.name)
+    bakiye = economy[str(ctx.author.id)]['bakiye']
+
+    # Kullanıcının yeterli bakiyesi var mı kontrol et
+    if bakiye < miktar:
+        await ctx.send("Yeterli bakiyeniz yok.")
+        return
+
+    # Kullanıcının takımını al
+    takimlar = {}
+    if os.path.exists('takimlar.json'):
+        async with aiofiles.open('takimlar.json', mode='r', encoding='utf-8') as f:
+            takimlar = json.loads(await f.read())
+
+    if str(ctx.author.id) not in takimlar:
+        await ctx.send("Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
+        return
+
+    takim = takimlar[str(ctx.author.id)]
+    takim_adi = takim['takim_adi']
+
+    # Takıma yatırım yap
+    takim['miktari'] += miktar
+
+    async with aiofiles.open('takimlar.json', mode='w', encoding='utf-8') as f:
+        await f.write(json.dumps(takimlar, indent=4))
+
+    # Kullanıcının bakiyesinden miktarı düş
+    economy[str(ctx.author.id)]['bakiye'] -= miktar
+    await save_economy(economy)
+
+    await ctx.send(f"{ctx.author.mention}, '{takim_adi}' takımınıza {miktar} sikke yatırım yaptınız.")
+
+
+@bot.command()
+async def macyap(ctx, bahis: int):
+    # Bahis miktarını kontrol et
+    if bahis <= 0:
+        await ctx.send("Lütfen geçerli bir bahis miktarı belirtin.")
+        return
+
+    # Kullanıcının bakiyesini kontrol et
+    economy = await add_user_to_economy(user_id=ctx.author.id, username=ctx.author.name)
+    bakiye = economy[str(ctx.author.id)]['bakiye']
+
+    # Kullanıcının yeterli bakiyesi var mı kontrol et
+    if bakiye < bahis:
+        await ctx.send("Yeterli bakiyeniz yok.")
+        return
+
+    # Takımları yükle
+    takimlar = {}
+    if os.path.exists('takimlar.json'):
+        async with aiofiles.open('takimlar.json', mode='r', encoding='utf-8') as f:
+            takimlar = json.loads(await f.read())
+
+    if str(ctx.author.id) not in takimlar:
+        await ctx.send("Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
+        return
+
+    kullanici_takimi = takimlar[str(ctx.author.id)]
+
+    # Takıma yatırılan bahis miktarını güncelle
+    kullanici_takimi['miktari'] -= bahis
+
+    # Rastgele bir rakip seç
+    rakip_id = random.choice(list(takimlar.keys()))
+    while rakip_id == str(ctx.author.id) or kullanici_takimi['takim_adi'] == takimlar[rakip_id]['takim_adi']:
+        rakip_id = random.choice(list(takimlar.keys()))
+
+    rakip_takimi = takimlar[rakip_id]
+
+    # Takımlar arasında maç yap
+    if kullanici_takimi['miktari'] > rakip_takimi['miktari']:
+        kazanan_takim_id = str(ctx.author.id)
+    else:
+        kazanan_takim_id = rakip_id
+
+    # Kazanan takımın bakiyesine bahis miktarını ekle 
+    takimlar[kazanan_takim_id]['miktari'] += bahis *2
+
+    # Kaybeden takımdan bahis miktarını çıkar
+    takimlar[rakip_id]['miktari'] -= bahis
+
+    # Maç sonucunu bildir
+    if kazanan_takim_id == str(ctx.author.id):
+        await ctx.send(f"{ctx.author.mention}, '{kullanici_takimi['takim_adi']}' takımı '{rakip_takimi['takim_adi']}' takımını mağlup etti! {bahis * 2} sikke kazandınız.")
+        economy[str(ctx.author.id)]['bakiye'] += bahis * 2
+        kullanici_takimi['kazanilan_mac'] += 1
+        rakip_takimi['kaybedilen_mac'] += 1
+    else:
+        await ctx.send(f"{ctx.author.mention}, '{kullanici_takimi['takim_adi']}' takımı '{rakip_takimi['takim_adi']}' takımına yenildi.")
+        kullanici_takimi['kaybedilen_mac'] += 1
+        rakip_takimi['kazanilan_mac'] += 1
+
+    # Takım verilerini kaydet
+    async with aiofiles.open('takimlar.json', mode='w', encoding='utf-8') as f:
+        await f.write(json.dumps(takimlar, indent=4))
+
+    # Kullanıcının bakiyesini güncelle
+    economy[str(ctx.author.id)]['bakiye'] -= bahis
+    await save_economy(economy)
+
+
+
+
+@bot.command()
+async def takimim(ctx):
+    # Takımları yükle
+    takimlar = {}
+    if os.path.exists('takimlar.json'):
+        async with aiofiles.open('takimlar.json', mode='r', encoding='utf-8') as f:
+            takimlar = json.loads(await f.read())
+
+    if str(ctx.author.id) not in takimlar:
+        await ctx.send("Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
+        return
+
+    kullanici_takimi = takimlar[str(ctx.author.id)]
+    mesaj = f"Takım Adı: {kullanici_takimi['takim_adi']}\n"
+    mesaj += f"Kaptan: {kullanici_takimi['kaptan']}\n"
+    mesaj += f"Takım Kasası: {kullanici_takimi['miktari']}\n"
+    mesaj += f"Kazanılan Maçlar: {kullanici_takimi['kazanilan_mac']}\n"
+    mesaj += f"Kaybedilen Maçlar: {kullanici_takimi['kaybedilen_mac']}\n"
+
+    await ctx.send(mesaj)
 
 
 
