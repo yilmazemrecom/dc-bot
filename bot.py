@@ -78,7 +78,7 @@ responses = {
     "nasılsın": "iyiyim, sen nasılsın?",
     "hoş geldin": "Teşekkürler!",
     "görüşürüz": "Görüşmek üzere!",
-    "sa": "Aleyküm selam!",
+    "Merhaba": "Merhabana merhaba kardeş!",
     "s.a": "Aleyküm selam!",
     "naber": "iyiyim, sen nasılsın?",
     "kötü": "üzüldüm, umarım bir an önce düzelirsin.",
