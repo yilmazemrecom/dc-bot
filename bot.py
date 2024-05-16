@@ -79,6 +79,7 @@ responses = {
     "hoş geldin": "Teşekkürler!",
     "görüşürüz": "Görüşmek üzere!",
     "sa": "Aleyküm selam!",
+    "s.a": "Aleyküm selam!",
     "naber": "iyiyim, sen nasılsın?",
     "kötü": "üzüldüm, umarım bir an önce düzelirsin.",
     "teşekkürler": "rica ederim!",
@@ -88,6 +89,7 @@ responses = {
     "iyi günler": "iyi günler!",
     "kahve": "Starbucks mı burası kardeşim? :coffee: ",
     "çaycı": "çay mı istiyon? :teapot: ",
+
 
 }
 
@@ -100,19 +102,16 @@ async def on_message(message):
     await add_user_to_economy(user_id=message.author.id, username=message.author.name)
 
     content = message.content.lower()
-
+    await bot.process_commands(message)
     # Özel durumlar için yanıt verme
     for keyword, response in responses.items():
         if keyword in content:
             await message.channel.send(f"{message.author.mention}, {response}")
-            return  # Özel durum bulunduğunda işlemi sonlandır
+            return  # işlemi sonlandır
 
 
-    if "çay ver abine" in content:
-        for mentioned_user in message.mentions:
-            await message.channel.send(" https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727 ")
 
-    elif "dolar" in content:
+    if "dolar" in content:
         try:
             c = CurrencyConverter()
             amount = c.convert(1, 'USD', 'TRY')
@@ -120,16 +119,8 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"{message.author.mention}, döviz kurunu alırken bir hata oluştu: {str(e)}")
 
-    elif "çay" in words:
-        await message.channel.send(f"{message.author.mention} Çayllaaaağğrr Geliyooo!! :teapot: ")
-
-
-
-
-
-
-    await bot.process_commands(message)
-
+    elif "çay" in content:
+        await message.channel.send("https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727")
 # oyun
 
 @bot.command()
