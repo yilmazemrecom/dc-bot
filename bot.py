@@ -107,12 +107,8 @@ async def on_message(message):
             await message.channel.send(f"{message.author.mention}, {response}")
             return  # Özel durum bulunduğunda işlemi sonlandır
 
-    # Genel yanıt döngüsü
-    words = content.split() 
-    if content in responses:
-        await message.channel.send(f"{message.author.mention}, {responses[content]}")
 
-    elif "çay ver abine" in content:
+    if "çay ver abine" in content:
         for mentioned_user in message.mentions:
             await message.channel.send(" https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727 ")
 
