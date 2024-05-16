@@ -2,15 +2,36 @@
     "375674608960929802": {
         "takim_adi": "EmreSpor",
         "kaptan": "emre_web",
-        "miktari": 190,
-        "kazanilan_mac": 10,
-        "kaybedilen_mac": 4
+        "miktari": 434,
+        "kazanilan_mac": 9,
+        "kaybedilen_mac": 3
     },
     "375674608960929801": {
         "takim_adi": "TesterSpor",
         "kaptan": "emre",
-        "miktari": 10,
+        "miktari": -145,
+        "kazanilan_mac": 0,
+        "kaybedilen_mac": 7
+    },
+    "294910526163517441": {
+        "takim_adi": "MuslumGurses",
+        "kaptan": "oguzsh",
+        "miktari": 60,
+        "kazanilan_mac": 5,
+        "kaybedilen_mac": 7
+    },
+    "518146355114541093": {
+        "takim_adi": "Metonya_Spor",
+        "kaptan": "burokoli",
+        "miktari": 242,
         "kazanilan_mac": 4,
-        "kaybedilen_mac": 10
+        "kaybedilen_mac": 1
+    },
+    "223811180018401281": {
+        "takim_adi": "parlayanlar",
+        "kaptan": "ataberk.6676",
+        "miktari": 217,
+        "kazanilan_mac": 0,
+        "kaybedilen_mac": 0
     }
 }

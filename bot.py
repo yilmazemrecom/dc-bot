@@ -87,10 +87,9 @@ responses = {
     "günaydın": "günaydın!",
     "iyi akşamlar": "iyi akşamlar!",
     "iyi günler": "iyi günler!",
-    "çay": "Çayllaaaağğrr Geliyooo!! :teapot: ",
     "kahve": "Starbucks mı burası kardeşim? :coffee: ",
     "çaycı": "çay mı istiyon? :teapot: ",
-    "çay ver abine": "çayın geliyor abim :teapot: "
+
 }
 
 # Event listener for messages
@@ -110,7 +109,7 @@ async def on_message(message):
 
     elif "çay ver abine" in content:
         for mentioned_user in message.mentions:
-            await message.channel.send(f"{mentioned_user.name}, çayın geliyor abim :teapot: ")
+            await message.channel.send(" https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727 ")
 
     elif "dolar" in content:
         try:
@@ -121,7 +120,7 @@ async def on_message(message):
             await message.channel.send(f"{message.author.mention}, döviz kurunu alırken bir hata oluştu: {str(e)}")
 
     elif "çay" in words:
-        await message.channel.send(f"{message.author.mention} Çayllaaaağğrr Geliyooo!! :teapot: ")
+        await message.channel.send(" https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727 ")
 
 
 
@@ -367,27 +366,22 @@ def kelime_sec():
     return random.choice(kelimeler).lower()
 
 def harf_tahmin_et(kelime, tahmin_edilenler):
-    return "".join(harf if harf in tahmin_edilenler else "_" for harf in kelime)
+    return "".join(harf if harf in tahmin_edilenler else ":blue_circle:" for harf in kelime)
 
 
 
 @bot.command(name='asmaca')
 async def asmaca(ctx):
-    kelime = kelime_sec()
+    cevap = kelime_sec()
     dogru_tahminler = set()
     yanlis_tahminlar = set()
     can = len(adam_asmaca) - 1
 
     await ctx.send("Adam asmaca oyununa hoş geldiniz! Kelimeyi tahmin etmek için harfleri yazın.")
-    await ctx.send(f"Kelime {len(kelime)} harften oluşuyor.")
+    await ctx.send(f"Kelime {len(cevap)} harften oluşuyor.")
 
     while can > 0:
-        mesaj = ""
-        for harf in kelime:
-            if harf in dogru_tahminler:
-                mesaj += harf + " "
-            else:
-                mesaj += "_ "
+        mesaj = harf_tahmin_et(cevap,dogru_tahminler)
         await ctx.send(mesaj)
 
         tahmin = await bot.wait_for('message', check=lambda m: m.author == ctx.author)
@@ -397,9 +391,13 @@ async def asmaca(ctx):
             await ctx.send("Bu harfi zaten tahmin ettiniz!")
             continue
 
-        if tahmin in kelime:
+        if len(tahmin) > 1 and tahmin == cevap:
+            await ctx.send("Tebrikler, kelimeyi doğru tahmin ettiniz!")
+            break
+
+        if tahmin in cevap:
             dogru_tahminler.add(tahmin)
-            if set(kelime) == dogru_tahminler:
+            if set(cevap) == dogru_tahminler:
                 await ctx.send("Tebrikler, kelimeyi doğru tahmin ettiniz!")
                 break
         else:
@@ -408,9 +406,7 @@ async def asmaca(ctx):
             await ctx.send(f"Yanlış tahmin! Kalan can: {can}\n{adam_asmaca[len(adam_asmaca) - can - 1]}")
 
     if can == 0:
-        await ctx.send(f"Maalesef, kelimeyi bulamadınız! Kelime: {kelime}")
-
-
+        await ctx.send(f"Maalesef, kelimeyi bulamadınız! Kelime: {cevap}")
 
 
 
@@ -452,36 +448,36 @@ async def list_commands(ctx):
 
         "",
         "**Genel Komutlar:**",
-        "`sa`: Aleyküm selam!",
-        "`selam`: Merhaba!",
-        "`nasılsın`: Botun nasıl olduğunu sorar",
-        "`hoş geldin`: Hoş geldin mesajı verir",
-        "`görüşürüz`: Görüşürüz mesajı verir",
-        "`naber`: Nasıl olduğunu sorar",
-        "`iyi`: İyi olduğunu belirtir",
-        "`kötü`: Kötü olduğunu belirtir",
-        "`teşekkürler`: Teşekkür eder",
-        "`iyi geceler`: İyi geceler mesajı verir",
-        "`günaydın`: Günaydın mesajı verir",
-        "`iyi akşamlar`: İyi akşamlar mesajı verir",
-        "`iyi günler`: İyi günler mesajı verir",
-        "`çay`: Çay getirir",
-        "`kahve`: Kahve getirir (belki de getirmez)",
-        "`çaycı`: Çay mı istediğini sorar",
+        "- `sa`: Aleyküm selam!",
+        "- `selam`: Merhaba!",
+        "- `nasılsın`: Botun nasıl olduğunu sorar",
+        "- `hoş geldin`: Hoş geldin mesajı verir",
+        "- `görüşürüz`: Görüşürüz mesajı verir",
+        "- `naber`: Nasıl olduğunu sorar",
+        "- `iyi`: İyi olduğunu belirtir",
+        "- `kötü`: Kötü olduğunu belirtir",
+        "- `teşekkürler`: Teşekkür eder",
+        "- `iyi geceler`: İyi geceler mesajı verir",
+        "- `günaydın`: Günaydın mesajı verir",
+        "- `iyi akşamlar`: İyi akşamlar mesajı verir",
+        "- `iyi günler`: İyi günler mesajı verir",
+        "- `çay`: Çay getirir",
+        "- `kahve`: Kahve getirir (belki de getirmez)",
+        "- `çaycı`: Çay mı istediğini sorar",
         "",
         "**Döviz Kuru Komutları:**",
-        "`dolar`: 1 doların kaç TL olduğunu gösterir",
+        "- `dolar`: 1 doların kaç TL olduğunu gösterir",
 
         "",
         "**Eğlence Komutları:**",
-
-        "`!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular",
-        "`!bilmece`: Rastgele bir bilmece sorar",
-        "`!bakiye`: Bakiyeninizi gosterir",
-        "`!zar <bahis> <tahmin>`: Zar oyunu oynar",
-        "`!yazitura <bahis> <yazı/tura>`: Yazı tura oyunu oynar",
-        "`!quiz`: Rastgele bir quiz sorusu sorar",
-        "`!asmaca`: Adam asmaca oyunu oynar (üç beş yeri sorunlu ama genel mantık çalışıyor)",
+        "Para kazanmak için quiz veya bilmece bilebilirsiniz. Varsayılan bakiyeniz 100 sikke olarak eklenir.",
+        "- `!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular",
+        "- `!bilmece`: Rastgele bir bilmece sorar",
+        "- `!bakiye`: Bakiyeninizi gosterir",
+        "- `!zar <bahis> <tahmin>`: Zar oyunu",
+        "- `!yazitura <bahis> <yazı/tura>`: Yazı tura oyunu",
+        "- `!quiz`: Rastgele bir quiz sorusu sorar",
+        "- `!asmaca`: Adam asmaca oyunu",
         "",
         "**Takım Oyunu Komutları:**",
         "Takım oyununda bir takım oluşturabilir, takımınıza yatırım yapabilir ve diğer takımlarla maç yapabilirsiniz.",
@@ -490,11 +486,12 @@ async def list_commands(ctx):
         "1. Her kullanıcı yalnızca bir takıma sahip olabilir",
         "2. Takımınızın kasasına yatırım yaparak takımınızı güçlendirebilirsiniz",
         "3. Takımınızla maç yaparak diğer takımlardan sikke kazanabilirsiniz aynı zamanda bahis miktarı*2 de kasanıza gelir",
+        "4. Maç yaparken kasada kimin daha çok sikkesi varsa o kazanır.",
         "",
-        "`!takimolustur <takim_adi> <miktari>`: Yeni bir takım oluşturur",
-        "`!takimyatirim <miktari>`: Takımınıza yatırım yapar",
-        "`!macyap <bahis>`: Takımınızla maç yapar",
-        "`!takimim`: Takımınızı gösterir",
+        "- `!takimolustur <takim_adi> <yatirim miktarı>`: Yeni bir takım oluşturur",
+        "- `!takimyatirim <yatırım miktarı>`: Takımınıza yatırım yapar",
+        "- `!macyap <bahis>`: Takımınızla maç yapar",
+        "- `!takimim`: Takımınızı gösterir",
 
 
     ]
@@ -714,7 +711,7 @@ async def takimim(ctx):
     kullanici_takimi = takimlar[str(ctx.author.id)]
     mesaj = f"Takım Adı: {kullanici_takimi['takim_adi']}\n"
     mesaj += f"Kaptan: {kullanici_takimi['kaptan']}\n"
-    mesaj += f"Takım Kasası: {kullanici_takimi['miktari']}\n"
+    mesaj += f"Takım Kasası: {kullanici_takimi['miktari']} sikke\n"
     mesaj += f"Kazanılan Maçlar: {kullanici_takimi['kazanilan_mac']}\n"
     mesaj += f"Kaybedilen Maçlar: {kullanici_takimi['kaybedilen_mac']}\n"
 
