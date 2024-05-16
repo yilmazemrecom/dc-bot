@@ -124,8 +124,8 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"{message.author.mention}, döviz kurunu alırken bir hata oluştu: {str(e)}")
 
-    elif "çay" in content:
-        await message.channel.send(" https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727 ")
+    elif "çay" in words:
+        await message.channel.send(f"{message.author.mention} Çayllaaaağğrr Geliyooo!! :teapot: ")
 
 
 
