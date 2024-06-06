@@ -9,15 +9,15 @@ import json
 import asyncio
 import aiofiles
 
-# Botunuzu Discord Developer Portal'dan aldığınız token ile başlatın
+
 TOKEN = 'MTIzOTI0NjU1Mzg2MDgwMDYxNA.G6KXUJ.KfVxkeS1GWdF60q2BPn_QyV9b8UhF63371PW40'
 
-# Botunuzun ön ekini belirleyin
+
 PREFIX = '!'
 
-# Botunuzu başlatın ve gerekli izinleri belirtin
+# Gerekli izinler
 intents = discord.Intents.default()
-intents.messages = True  # Mesaj içeriği iznini etkinleştirin
+intents.messages = True  # Mesaj içeriği izni
 intents.presences = True
 intents.message_content = True
 
@@ -159,6 +159,34 @@ async def bakiye(ctx):
         await ctx.send(f'{bakiye} sikkeniz var.')
     else:
         await ctx.send(f'{bakiye} sikkeniz var. :sunglasses: ')
+
+
+
+@bot.command()
+async def btransfer(ctx, user: discord.Member, amount: int):
+    # Bakiyeleri yükle
+    economy = await load_economy()
+
+    # Komutu kullanan kişinin bakiyesini kontrol et
+    author_id = str(ctx.author.id)
+    if author_id not in economy:
+        await ctx.send("Bakiyeniz bulunamadı. Önce bir bakiye oluşturmalısınız.")
+        return
+    if economy[author_id]['bakiye'] < amount:
+        await ctx.send("Yetersiz bakiye.")
+        return
+
+    # Transfer işlemini gerçekleştir
+    target_id = str(user.id)
+    if target_id not in economy:
+        economy[target_id] = {'bakiye': 0, 'username': user.name}
+    economy[target_id]['bakiye'] += amount
+    economy[author_id]['bakiye'] -= amount
+
+    # Economy dosyasına kaydet
+    await save_economy(economy)
+
+    await ctx.send(f"{amount} sikke, {user.name}'in hesabına aktarıldı.")
 
 # Zar Oyunu
 @bot.command()
@@ -402,6 +430,47 @@ async def asmaca(ctx):
 
 
 
+import random
+from discord.ext import commands
+
+# Rulet
+@bot.command()
+async def rulet(ctx, bahis: int):
+    # Bahis miktarını kontrol et
+    if bahis <= 0:
+        await ctx.send("Geçerli bir bahis miktarı belirtmelisiniz.")
+        return
+
+    # Kullanıcının bakiyesini kontrol et
+    economy = await add_user_to_economy(user_id=ctx.author.id, username=ctx.author.name)
+    bakiye = economy[str(ctx.author.id)]['bakiye']
+    if bakiye < -100:
+        await ctx.send("Bakiyeniz -100'den az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+        return
+    
+    # Rulet sonucu belirle
+    kazandi = random.choice([True, False])
+
+    # Kullanıcının bahisi sonucuna göre bakiyesini güncelle
+    if kazandi:
+        economy[str(ctx.author.id)]['bakiye'] += bahis
+        await save_economy(economy)
+        await ctx.send(f"Tebrikler! Rulet kazandınız. {bahis} sikke kazandınız.")
+    else:
+        economy[str(ctx.author.id)]['bakiye'] -= bahis
+        await save_economy(economy)
+        await ctx.send(f"Maalesef! Rulet kaybettiniz. {bahis} sikke kaybettiniz.")
+
+@rulet.error
+async def rulet_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("Lütfen bir bahis miktarı belirtin. Örneğin: `!rulet <bahis miktarı>`")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("Geçerli bir bahis miktarı belirtmelisiniz.")
+
+
+
+
 
 
 @bot.command()
@@ -428,6 +497,7 @@ async def siralama(ctx):
         sıralama_mesajı += f"{index}. {username} - {bakiye} sikke\n"
 
     await ctx.send(sıralama_mesajı)
+
 
 
 
@@ -464,12 +534,14 @@ async def list_commands(ctx):
         "**Eğlence Komutları:**",
         "Para kazanmak için quiz veya bilmece bilebilirsiniz. Varsayılan bakiyeniz 100 sikke olarak eklenir.",
         "- `!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular",
-        "- `!bilmece`: Rastgele bir bilmece sorar",
         "- `!bakiye`: Bakiyeninizi gosterir",
+        "- `!btransfer <kişi etiket> <tutar>`: Belirttiğiniz tutar kadar sikke transferi yapar.",
+        "- `!bilmece`: Rastgele bir bilmece sorar",
         "- `!zar <bahis> <tahmin>`: Zar oyunu",
         "- `!yazitura <bahis> <yazı/tura>`: Yazı tura oyunu",
         "- `!quiz`: Rastgele bir quiz sorusu sorar",
         "- `!asmaca`: Adam asmaca oyunu",
+        "- `!rulet <bahis>`: Rulet oyunu. Ya hep ya hiç",
         "",
         "**Takım Oyunu Komutları:**",
         "Takım oyununda bir takım oluşturabilir, takımınıza yatırım yapabilir ve diğer takımlarla maç yapabilirsiniz.",
