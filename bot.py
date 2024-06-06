@@ -11,8 +11,6 @@ import asyncio
 import aiofiles
 
 
-TOKEN = 'MTIzOTI0NjU1Mzg2MDgwMDYxNA.G6KXUJ.KfVxkeS1GWdF60q2BPn_QyV9b8UhF63371PW40'
-
 
 PREFIX = '!'
 
