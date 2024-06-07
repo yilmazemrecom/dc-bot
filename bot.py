@@ -91,7 +91,7 @@ async def list_commands(ctx):
     await ctx.send('\n'.join(komutlar))
 
 async def load_extensions():
-    for extension in ['responses', 'games', 'economy', 'takimoyunu']:
+    for extension in ['responses', 'games', 'economy', 'takimoyunu','music' ]:
         await bot.load_extension(extension)
 
 async def main():
