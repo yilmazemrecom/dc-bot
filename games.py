@@ -1,7 +1,7 @@
 from discord.ext import commands
 import random
 import asyncio
-from util import load_economy, save_economy, add_user_to_economy, load_bilmeceler, load_quiz_questions
+from util import load_economy, save_economy, add_user_to_economy, load_bilmeceler, load_quiz_questions, load_kelime_listesi
 import aiosqlite
 import json
 import aiofiles
