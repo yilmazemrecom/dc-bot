@@ -86,22 +86,15 @@ class Games(commands.Cog):
     # Rulet komutu
     @commands.command()
     async def rulet(self, ctx, bahis: int):
-           try:
-        bahis = Decimal(bahis)
-    except InvalidOperation:
-        await ctx.send("Lütfen geçerli bir bahis miktarı belirtin.")
-        return
+        if bahis <= 0:
+            await ctx.send("Geçerli bir bahis miktarı belirtmelisiniz.")
+            return
 
-    if bahis <= 0:
-        await ctx.send("Lütfen geçerli bir bahis miktarı belirtin.")
-        return
-
-    economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
-    bakiye = Decimal(economy[2])
-    if bakiye < bahis:
-        await ctx.send("Yeterli bakiyeniz yok.")
-        return
-
+        economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
+        bakiye = economy[2]
+        if bakiye < -100:
+            await ctx.send("Bakiyeniz -100'den az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+            return
         
         kazandi = random.choice([True, False])
         if kazandi:
