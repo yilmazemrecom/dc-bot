@@ -4,3 +4,5 @@ currency-converter
 aiofiles
 asyncio
 aiosqlite
+youtube_dl
+yt_dlp

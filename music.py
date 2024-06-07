@@ -75,6 +75,11 @@ class Music(commands.Cog):
             await ctx.send("Bir ses kanalında değilsiniz.")
             return
 
+        # İlk şarkıyı yüklerken yerel bir ses dosyası çalın
+        if not ctx.voice_client.is_playing() and not self.queue:
+            ctx.voice_client.play(discord.FFmpegPCMAudio('caylar.mp3'), after=lambda e: None)
+            await asyncio.sleep(5)
+
         await self.prepare_next_song(url_or_query)
         await ctx.send(f'Kuyruğa eklendi: {url_or_query}')
 
