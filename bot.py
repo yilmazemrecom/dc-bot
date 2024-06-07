@@ -80,7 +80,7 @@ async def list_commands(ctx):
             "- `!takimim`: Takımınızı gösterir",
             "",
             "**Diğer komutlar ve yardım için**",
-            "https://cayci.github.io/"
+            "https://emreylmzcom.github.io/cayci/"
         ]
         await ctx.send('\n'.join(komutlar))
     except Exception as e:
