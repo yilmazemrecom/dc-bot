@@ -3,3 +3,4 @@ CurrencyConverter
 currency-converter
 aiofiles
 asyncio
+aiosqlite
