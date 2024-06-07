@@ -1,5 +1,3 @@
 
 config.py
-economy.json
-sunucular.json
-takimlar.json
+economy.db
