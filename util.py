@@ -73,3 +73,9 @@ async def load_quiz_questions():
     except json.JSONDecodeError:
         print("quiz_sorulari.json dosyası düzgün yüklenemedi!")
         return []
+
+async def load_kelime_listesi():
+    async with aiofiles.open('kelimeler.json', mode='r', encoding='utf-8') as f:
+        data = await f.read()
+        kelimeler = json.loads(data)['kelimeler']
+    return kelimeler

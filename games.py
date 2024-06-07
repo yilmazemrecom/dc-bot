@@ -172,16 +172,6 @@ class Games(commands.Cog):
         """
     ]
 
-    kelimeler = [
-        "bilgisayar", "internet", "müzik", "sanat", "tarih", "edebiyat", "gezegen", 
-        "evrim", "kültür", "dil", "geometri", "biyoloji", "kimya", "fizik", "matematik", 
-        "arkeoloji", "jeoloji", "teknoloji", "kriptografi", "filozofi", "astronomi", 
-        "antropoloji", "meteoroloji", "psikoloji", "sosyoloji", "ekonomi", "politika", 
-        "tarım", "mimarlık", "müze", "mimari", "sağlık", "insanlık", "din", "inanç", 
-        "coğrafya", "jeopolitik", "spor", "medya", "toplum", "iletişim", "ulaşım", 
-        "enerji", "ekoloji", "çevre", "sürdürülebilirlik", "turizm"
-    ]
-
     def kelime_sec(self):
         return random.choice(self.kelimeler).lower()
 
@@ -190,7 +180,8 @@ class Games(commands.Cog):
 
     @commands.command(name='asmaca')
     async def asmaca(self, ctx):
-        cevap = self.kelime_sec()
+        kelime_listesi = await load_kelime_listesi()
+        cevap = random.choice(kelime_listesi).lower()
         dogru_tahminler = set()
         yanlis_tahminler = set()
         can = len(self.adam_asmaca) - 1
