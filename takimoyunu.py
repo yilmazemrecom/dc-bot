@@ -119,9 +119,16 @@ class takimoyunu(commands.Cog):
             if kazanan_takim_id == str(ctx.author.id):
                 await ctx.send(f"{ctx.author.mention}, '{kullanici_takimi[1]}' takımı '{rakip_takimi[1]}' takımını mağlup etti! {bahis * 2} sikke kazandınız.")
                 await db.execute('UPDATE economy SET bakiye = bakiye + ? WHERE user_id = ?', (bahis * 2, str(ctx.author.id)))
+                await db.execute('UPDATE takimlar SET kazanilan_mac = kazanilan_mac + 1 WHERE user_id = ?', (kazanan_takim_id,))
+                await db.execute('UPDATE takimlar SET kaybedilen_mac = kaybedilen_mac + 1 WHERE user_id = ?', (kaybeden_takim_id,))
             else:
                 await ctx.send(f"{ctx.author.mention}, '{kullanici_takimi[1]}' takımı '{rakip_takimi[1]}' takımına yenildi.")
+                await db.execute('UPDATE takimlar SET kaybedilen_mac = kaybedilen_mac + 1 WHERE user_id = ?', (kaybeden_takim_id,))
+                await db.execute('UPDATE takimlar SET kazanilan_mac = kazanilan_mac + 1 WHERE user_id = ?', (kazanan_takim_id,))
+
             await db.commit()
+
+
 
     @commands.command()
     async def takimim(self, ctx):

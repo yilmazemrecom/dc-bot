@@ -217,5 +217,45 @@ class Games(commands.Cog):
         if can == 0:
             await ctx.send(f"Maalesef, kelimeyi bulamadınız! Kelime: {cevap}")
 
+    @commands.command()
+    async def yazitura(self, ctx, bahis: int, secim: str):
+        # Bahis miktarını kontrol et
+        if bahis <= 0:
+            await ctx.send("Geçerli bir bahis miktarı belirtmelisiniz.")
+            return
+
+        # Kullanıcının seçiminin geçerli olup olmadığını kontrol et
+        secim = secim.lower()
+        if secim not in ["yazı", "tura"]:
+            await ctx.send("Geçerli bir seçim yapmalısınız: yazı veya tura.")
+            return
+
+        # Kullanıcının bakiyesini kontrol et
+        economy = await add_user_to_economy(user_id=ctx.author.id, username=ctx.author.name)
+        bakiye = economy[2]
+        if bakiye < bahis:
+            await ctx.send("Yeterli bakiyeniz yok.")
+            return
+
+        if bakiye < -100:
+            await ctx.send("Bakiyeniz -100'den az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+            return
+
+        # Rastgele yazı veya tura seç
+        yanit = random.choice(["yazı", "tura"])
+
+        # Kullanıcının seçimi ile gerçek sonucu karşılaştır
+        if secim == yanit:
+            kazanc = bahis * 2
+            yeni_bakiye = bakiye + kazanc
+            await save_economy(ctx.author.id, ctx.author.name, yeni_bakiye)
+            await ctx.send(f"Tebrikler! Sonuç {yanit}, tahmininiz doğru! {kazanc} sikke kazandınız.")
+        else:
+            yeni_bakiye = bakiye - bahis
+            await save_economy(ctx.author.id, ctx.author.name, yeni_bakiye)
+            await ctx.send(f"Maalesef! Sonuç {yanit}, tahmininiz {secim}. Bilemediniz. {bahis} sikke kaybettiniz.")
+
+
+
 async def setup(bot):
     await bot.add_cog(Games(bot))
