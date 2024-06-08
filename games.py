@@ -45,8 +45,12 @@ class Games(commands.Cog):
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
-        if bakiye < -100:
-            await ctx.send("Bakiyeniz -100'den az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+        if bakiye <= 0:
+            await ctx.send("Bakiyeniz 0'dan az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+            return
+        
+        if bahis > bakiye:
+            await ctx.send("Yeterli bakiyeniz yok.")
             return
 
         zar_sayisi = random.randint(1, 6)
@@ -92,10 +96,14 @@ class Games(commands.Cog):
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
-        if bakiye < -100:
-            await ctx.send("Bakiyeniz -100'den az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+        if bakiye <= 0:
+            await ctx.send("Bakiyeniz -0'dan az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
             return
-        
+
+        if bahis > bakiye:
+            await ctx.send("Yeterli bakiyeniz yok.")
+            return
+
         kazandi = random.choice([True, False])
         if kazandi:
             new_balance = bakiye + bahis
