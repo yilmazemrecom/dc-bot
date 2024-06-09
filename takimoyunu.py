@@ -148,7 +148,7 @@ class takimoyunu(commands.Cog):
     @commands.command()
     async def lig(self, ctx):
         async with aiosqlite.connect(DATABASE) as db:
-            cursor = await db.execute('SELECT takim_adi, kaptan, kazanilan_mac FROM takimlar ORDER BY kazanilan_mac DESC')
+            cursor = await db.execute('SELECT takim_adi, kaptan, kazanilan_mac FROM takimlar ORDER BY kazanilan_mac DESC LIMIT 20')
             rows = await cursor.fetchall()
 
         lig_mesaji = "**Türk Yıldızları Ligi:**\n\n"
