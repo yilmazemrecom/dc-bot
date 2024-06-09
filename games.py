@@ -15,7 +15,7 @@ class Games(commands.Cog):
     # Bilmece komutu
     @commands.command()
     async def bilmece(self, ctx):
-        print("Bilmece komutu çağrıldı")
+
         bilmece_havuzu = await load_bilmeceler()
         selected_riddle = random.choice(bilmece_havuzu)
         soru = selected_riddle["soru"]
@@ -38,7 +38,7 @@ class Games(commands.Cog):
     # Zar komutu
     @commands.command()
     async def zar(self, ctx, bahis: int, tahmin: int):
-        print("Zar komutu çağrıldı")
+
         if bahis <= 0 or tahmin < 1 or tahmin > 6:
             await ctx.send("Geçerli bir bahis miktarı ve tahmin belirtmelisiniz.")
             return
@@ -66,7 +66,7 @@ class Games(commands.Cog):
     # Quiz komutu
     @commands.command()
     async def quiz(self, ctx):
-        print("Quiz komutu çağrıldı")
+
         quiz_sorulari = await load_quiz_questions()
         selected_question = random.choice(quiz_sorulari)
         soru, cevap = selected_question["soru"], selected_question["cevap"]

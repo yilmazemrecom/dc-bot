@@ -1,20 +1,19 @@
-from discord.ext import commands
+import discord
+from discord.ext import commands, tasks
 import random
-import asyncio
-from util import load_economy, save_economy, add_user_to_economy, load_bilmeceler, load_quiz_questions
 import aiosqlite
 import json
 import aiofiles
+import datetime
 
 DATABASE = 'economy.db'
+WINNERS_FILE = 'lig_kazanan.json'
 
 class takimoyunu(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.reset_lig.start()
 
-
-    
-    # Takım oyunu 
     @commands.command()
     async def takimolustur(self, ctx, takim_adi: str, miktari: int):
         async with aiofiles.open('kufur_listesi.json', 'r', encoding='utf-8') as file:
@@ -87,7 +86,7 @@ class takimoyunu(commands.Cog):
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
-        if bakiye < bahis:
+        if bakiye < bahis or bakiye > 10**9:
             await ctx.send("Yeterli bakiyeniz yok.")
             return
 
@@ -128,8 +127,6 @@ class takimoyunu(commands.Cog):
 
             await db.commit()
 
-
-
     @commands.command()
     async def takimim(self, ctx):
         async with aiosqlite.connect(DATABASE) as db:
@@ -147,6 +144,55 @@ class takimoyunu(commands.Cog):
         mesaj += f"Kaybedilen Maçlar: {row[5]}\n"
         await ctx.send(mesaj)
 
+
+    @commands.command()
+    async def lig(self, ctx):
+        async with aiosqlite.connect(DATABASE) as db:
+            cursor = await db.execute('SELECT takim_adi, kaptan, kazanilan_mac FROM takimlar ORDER BY kazanilan_mac DESC')
+            rows = await cursor.fetchall()
+
+        lig_mesaji = "**Türk Yıldızları Ligi:**\n\n"
+        lig_mesaji += "```\n"
+        lig_mesaji += "{:<4} {:<20} {:<15} {:<10}\n".format("Sıra", "Takım Adı", "Kaptan", "Puan (Galibiyet)")
+        lig_mesaji += "-" * 50 + "\n"
+        for index, row in enumerate(rows, start=1):
+            lig_mesaji += "{:<4} {:<20} {:<15} {:<10}\n".format(index, row[0], row[1], f"{row[2]} galibiyet")
+        lig_mesaji += "```"
+
+        await ctx.send(lig_mesaji)
+
+    @tasks.loop(hours=24)
+    async def reset_lig(self):
+        now = datetime.datetime.now()
+        if now.day == 1:
+            async with aiosqlite.connect(DATABASE) as db:
+                cursor = await db.execute('SELECT takim_adi, kaptan FROM takimlar ORDER BY kazanilan_mac DESC LIMIT 1')
+                winner = await cursor.fetchone()
+
+                if winner:
+                    async with aiofiles.open(WINNERS_FILE, 'r+') as file:
+                        try:
+                            data = json.loads(await file.read())
+                        except json.JSONDecodeError:
+                            data = []
+
+                        data.append({
+                            'Ay': now.strftime("%B %Y"),
+                            'takim_adi': winner[0],
+                            'kaptan': winner[1]
+                        })
+
+                        await file.seek(0)
+                        await file.write(json.dumps(data, ensure_ascii=False, indent=4))
+
+                await db.execute('UPDATE takimlar SET kazanilan_mac = 0')
+                await db.commit()
+
+            print("Lig sıralaması sıfırlandı!")
+
+    @reset_lig.before_loop
+    async def before_reset_lig(self):
+        await self.bot.wait_until_ready()
 
 async def setup(bot):
     await bot.add_cog(takimoyunu(bot))

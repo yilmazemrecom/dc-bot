@@ -6,3 +6,4 @@ asyncio
 aiosqlite
 youtube_dl
 yt_dlp
+pynacl

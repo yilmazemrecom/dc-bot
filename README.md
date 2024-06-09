@@ -1,4 +1,4 @@
-# Discord Botu
+# Çaycı
 
 Bu Discord botu, çeşitli eğlence ve ekonomi komutları sunar. Bot, Discord sunucunuza katıldığında çeşitli mesajlar gönderir ve kullanıcılarla etkileşimde bulunur.
 
@@ -55,4 +55,11 @@ Bu Discord botu, çeşitli eğlence ve ekonomi komutları sunar. Bot, Discord su
 - `kahve`: Kahve getirir (belki de getirmez)
 - `çaycı`: Çay mı istediğini sorar
 
+## Müzik Komutları
+
+- `!çal <şarkı adı veya URL>`: müzik çalar
+- `!durdur`: şarkıyı durdurur
+- `!devam`: şarkıyı devam ettirir.
+- `!siradakiler`: sıraya eklenen şarkıları gösterir
+- `!gec`: sıradaki şarkıya geçer.
 
