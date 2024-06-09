@@ -80,6 +80,7 @@ class takimoyunu(commands.Cog):
         await save_economy(ctx.author.id, ctx.author.name, new_balance)
         await ctx.send(f"{ctx.author.mention}, '{row[1]}' takımınıza {miktar} sikke yatırım yaptınız.")
 
+ 
     @commands.command()
     async def macyap(self, ctx, bahis: int):
         if bahis <= 0:
@@ -99,8 +100,17 @@ class takimoyunu(commands.Cog):
                 await ctx.send("Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
                 return
 
+            son_mac_zamani = kullanici_takimi[6]
+            now = datetime.datetime.now()
+
+            if son_mac_zamani is not None:
+                diff = now - datetime.datetime.fromisoformat(son_mac_zamani)
+                if diff.total_seconds() < 3600:
+                    await ctx.send("Bir saat içinde sadece bir maç yapabilirsiniz.")
+                    return
+
             yeni_miktar = kullanici_takimi[3] - bahis
-            await db.execute('UPDATE takimlar SET miktari = ? WHERE user_id = ?', (yeni_miktar, str(ctx.author.id)))
+            await db.execute('UPDATE takimlar SET miktari = ?, son_mac_zamani = ? WHERE user_id = ?', (yeni_miktar, now.isoformat(), str(ctx.author.id)))
             await db.commit()
 
             cursor = await db.execute('SELECT * FROM takimlar WHERE user_id != ?', (str(ctx.author.id),))
