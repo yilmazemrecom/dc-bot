@@ -52,7 +52,7 @@ class Economy(commands.Cog):
 
         sıralama_mesajı = "Sıralama:\n"
         for index, row in enumerate(rows, start=1):
-            username = row[1]
+            username = row[1][:-3] + "***" if len(row[1]) > 3 else "***"
             bakiye = row[2]
             sıralama_mesajı += f"{index}. {username} - {bakiye} sikke\n"
 

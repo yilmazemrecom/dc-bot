@@ -156,7 +156,8 @@ class takimoyunu(commands.Cog):
         lig_mesaji += "{:<4} {:<20} {:<15} {:<10}\n".format("Sıra", "Takım Adı", "Kaptan", "Puan (Galibiyet)")
         lig_mesaji += "-" * 50 + "\n"
         for index, row in enumerate(rows, start=1):
-            lig_mesaji += "{:<4} {:<20} {:<15} {:<10}\n".format(index, row[0], row[1], f"{row[2]} galibiyet")
+            kaptan_yildizli = row[1][:-3] + "***" if len(row[1]) > 3 else "***"
+            lig_mesaji += "{:<4} {:<20} {:<15} {:<10}\n".format(index, row[0], f"{kaptan_yildizli}", f"{row[2]} galibiyet")
         lig_mesaji += "```"
 
         await ctx.send(lig_mesaji)
