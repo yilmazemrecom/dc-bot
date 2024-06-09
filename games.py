@@ -55,7 +55,7 @@ class Games(commands.Cog):
 
         zar_sayisi = random.randint(1, 6)
         if tahmin == zar_sayisi:
-            kazanc = bahis * 2
+            kazanc = bahis * 3
             new_balance = bakiye + kazanc
             await ctx.send(f"Tebrikler! Zar atılan sayı {zar_sayisi} ve tahmininiz doğru! {kazanc} sikke kazandınız.")
         else:
