@@ -189,6 +189,8 @@ class takimoyunu(commands.Cog):
                         await file.write(json.dumps(data, ensure_ascii=False, indent=4))
 
                 await db.execute('UPDATE takimlar SET kazanilan_mac = 0')
+                await db.execute('UPDATE takimlar SET kaybedilen_mac = 0')
+                await db.execute('UPDATE takimlar SET bakiye = 100')
                 await db.commit()
 
             print("Lig sıralaması sıfırlandı!")
