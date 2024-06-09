@@ -5,6 +5,8 @@ import aiosqlite
 import json
 import aiofiles
 import datetime
+import asyncio
+from util import load_economy, save_economy, add_user_to_economy
 
 DATABASE = 'economy.db'
 WINNERS_FILE = 'lig_kazanan.json'
@@ -86,7 +88,7 @@ class takimoyunu(commands.Cog):
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
-        if bakiye < bahis or bakiye > 10**9:
+        if bakiye < bahis:
             await ctx.send("Yeterli bakiyeniz yok.")
             return
 
