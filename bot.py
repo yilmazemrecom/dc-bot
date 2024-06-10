@@ -1,6 +1,6 @@
 from config import TOKEN
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import aiosqlite
 import os
 from util import init_db, load_economy, save_economy, add_user_to_economy
@@ -17,9 +17,11 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 @bot.event
 async def on_ready():
     await init_db()
-    print(f'{bot.user.name} olarak giriş yapıldı!')
     await bot.change_presence(activity=discord.Game(name="Çay Yapıyor!"))
+    update_server_info.start()
 
+@tasks.loop(hours=1)  # Her saat başı çalışır
+async def update_server_info():
     sunucular = bot.guilds
     async with aiosqlite.connect('economy.db') as db:
         for sunucu in sunucular:
@@ -28,13 +30,11 @@ async def on_ready():
                 VALUES (?, ?, ?)
             ''', (sunucu.id, sunucu.name, sunucu.member_count))
         await db.commit()
-    
-    print("Sunucular listesi çekildi ve veritabanına kaydedildi.")
+    print("Sunucu bilgileri güncellendi.")
 
-@bot.event
-async def on_shutdown():
-    print("Bot kapatılıyor...")
-    await bot.close()
+@update_server_info.before_loop
+async def before_update_server_info():
+    await bot.wait_until_ready()
 
 @bot.command(name='komutlar')
 async def list_commands(ctx):
@@ -50,9 +50,6 @@ async def list_commands(ctx):
             "- `!gec`: Sıradaki şarkıya geçer",
             "- `!cik`: Ses kanalından ayrılır",
             "",
-            "**Döviz Kuru Komutları:**",
-            "- `dolar`: 1 doların kaç TL olduğunu gösterir",
-            "",
             "**Eğlence Komutları:**",
             "Para kazanmak için quiz veya bilmece bilebilirsiniz. Varsayılan bakiyeniz 100 sikke olarak eklenir.",
             "- `!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular",
@@ -66,20 +63,13 @@ async def list_commands(ctx):
             "- `!rulet <bahis>`: Rulet oyunu. Ya hep ya hiç",
             "",
             "**Takım Oyunu Komutları:**",
-            "Takım oyununda bir takım oluşturabilir, takımınıza yatırım yapabilir ve diğer takımlarla maç yapabilirsiniz.",
-            "Takımlar gerçek kişilerdir.",
-            "**Takım oyunu kuralları**",
-            "1. Her kullanıcı yalnızca bir takıma sahip olabilir",
-            "2. Takımınızın kasasına yatırım yaparak takımınızı güçlendirebilirsiniz",
-            "3. Takımınızla maç yaparak diğer takımlardan sikke kazanabilirsiniz aynı zamanda bahis miktarı*2 de kasanıza gelir",
-            "4. Maç yaparken kasada kimin daha çok sikkesi varsa o kazanır.",
-            "",
             "- `!takimolustur <takim_adi> <yatirim miktarı>`: Yeni bir takım oluşturur",
             "- `!takimyatirim <yatırım miktarı>`: Takımınıza yatırım yapar",
             "- `!macyap <bahis>`: Takımınızla maç yapar",
             "- `!takimim`: Takımınızı gösterir",
+            "- `!lig`: Lig durumunu gösterir",
             "",
-            "**Diğer komutlar ve yardım için**",
+            "**Diğer komutlar, takım oyunu kuralları ve yardım için**",
             "https://emreylmzcom.github.io/cayci/"
         ]
         await ctx.send('\n'.join(komutlar))
