@@ -17,7 +17,7 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 @bot.event
 async def on_ready():
     await init_db()
-    await bot.change_presence(activity=discord.Game(name="Çay Yapıyor!"))
+    await bot.change_presence(activity=discord.Game(name="ŞUAN BOT BAKIMDADIR!"))
     update_server_info.start()
 
 @tasks.loop(hours=1)  # Her saat başı çalışır
@@ -41,6 +41,9 @@ async def list_commands(ctx):
     try:
         komutlar = [
             "!komutlar: Tüm komutları listeler",
+            "",
+            "**Genel Komutlar**",
+            "- `!oyunbilayar #kanal`: Kanala Steam ve Epic oyun indirimlerini atar",
             "",
             "**Müzik Komutları**",
             "- `!cal <şarkı adı veya URL>`: Belirtilen şarkıyı çalar",
@@ -79,7 +82,7 @@ async def list_commands(ctx):
 
 
 async def load_extensions():
-    for extension in ['responses', 'games', 'economy', 'takimoyunu','music' ]:
+    for extension in ['responses', 'games', 'economy', 'takimoyunu','music', 'oyunbildirim' ]:
         await bot.load_extension(extension)
 
 async def main():
