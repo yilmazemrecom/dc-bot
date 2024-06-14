@@ -1,4 +1,5 @@
 
 config.py
 economy.db
+indirim.db
 lig_kazanan.json

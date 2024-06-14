@@ -148,7 +148,7 @@ class Oyunbildirim(commands.Cog):
             if not self.check_if_deal_exists_for_guild(title, guild_id):
                 channel = self.bot.get_channel(int(channel_id))
                 if channel:
-                    await channel.send(f"Yeni Oyun İndirimi: **{title}**! Yeni Fiyat: ${new_price}, Eski Fiyat: ${old_price}, İndirim: %{discount}. Mağaza: {store}. [Link]({url})")
+                    await channel.send(f"Yeni Oyun İndirimi: **{title}**! Yeni Fiyat: {new_price} TL, Eski Fiyat: {old_price} TL, İndirim: %{discount}. Mağaza: {store}. [Link]({url})")
                     self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
 
     def check_if_deal_exists_for_guild(self, title, guild_id):
