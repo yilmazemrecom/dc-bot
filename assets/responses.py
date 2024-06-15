@@ -15,20 +15,6 @@ class Responses(commands.Cog):
 
         content = message.content.lower()
         responses = {
-            "selam": "Merhaba!",
-            "nasılsın": "iyiyim, sen nasılsın?",
-            "hoş geldin": "Teşekkürler!",
-            "görüşürüz": "Görüşmek üzere!",
-            "merhaba": "Merhabana merhaba kardeş!",
-            "s.a": "Aleyküm selam!",
-            "naber": "iyiyim, sen nasılsın?",
-            "kötü": "üzüldüm, umarım bir an önce düzelirsin.",
-            "teşekkürler": "rica ederim!",
-            "iyi geceler": "iyi geceler!",
-            "günaydın": "günaydın!",
-            "iyi akşamlar": "iyi akşamlar!",
-            "iyi günler": "iyi günler!",
-            "kahve": "Starbucks mı burası kardeşim? :coffee: ",
             "çaycı": "çay mı istiyon? :teapot: ",
         }
 

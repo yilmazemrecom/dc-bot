@@ -8,8 +8,8 @@ import datetime
 import asyncio
 from util import load_economy, save_economy, add_user_to_economy
 
-DATABASE = 'economy.db'
-WINNERS_FILE = 'lig_kazanan.json'
+DATABASE = 'database/economy.db'
+WINNERS_FILE = 'json/lig_kazanan.json'
 
 class takimoyunu(commands.Cog):
     def __init__(self, bot):

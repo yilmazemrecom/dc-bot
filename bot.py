@@ -17,13 +17,13 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 @bot.event
 async def on_ready():
     await init_db()
-    await bot.change_presence(activity=discord.Game(name="ŞUAN BOT BAKIMDADIR!"))
+    await bot.change_presence(activity=discord.Game(name="Çaycı Test Botu"))
     update_server_info.start()
 
 @tasks.loop(hours=1)  # Her saat başı çalışır
 async def update_server_info():
     sunucular = bot.guilds
-    async with aiosqlite.connect('economy.db') as db:
+    async with aiosqlite.connect('database/economy.db') as db:
         for sunucu in sunucular:
             await db.execute('''
                 INSERT OR REPLACE INTO sunucular (sunucu_id, sunucu_ismi, sunucu_uye_sayisi)
@@ -83,7 +83,7 @@ async def list_commands(ctx):
 
 async def load_extensions():
     for extension in ['responses', 'games', 'economy', 'takimoyunu','music', 'oyunbildirim' ]:
-        await bot.load_extension(extension)
+        await bot.load_extension(f'assets.{extension}')
 
 async def main():
     async with bot:

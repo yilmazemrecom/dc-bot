@@ -2,7 +2,7 @@ import json
 import aiosqlite
 import aiofiles
 
-DATABASE = 'economy.db'
+DATABASE = 'database/economy.db'
 
 async def init_db():
     async with aiosqlite.connect(DATABASE) as db:
@@ -52,7 +52,7 @@ async def add_user_to_economy(user_id, username):
 
 async def load_bilmeceler():
     try:
-        async with aiofiles.open('bilmeceler.json', mode='r', encoding='utf-8') as f:
+        async with aiofiles.open('json/bilmeceler.json', mode='r', encoding='utf-8') as f:
             bilmeceler = json.loads(await f.read())
         return bilmeceler
     except FileNotFoundError:
@@ -64,7 +64,7 @@ async def load_bilmeceler():
 
 async def load_quiz_questions():
     try:
-        async with aiofiles.open('quiz_sorulari.json', mode='r', encoding='utf-8') as f:
+        async with aiofiles.open('json/quiz_sorulari.json', mode='r', encoding='utf-8') as f:
             quiz_sorulari = json.loads(await f.read())
         return quiz_sorulari
     except FileNotFoundError:
@@ -75,7 +75,7 @@ async def load_quiz_questions():
         return []
 
 async def load_kelime_listesi():
-    async with aiofiles.open('kelimeler.json', mode='r', encoding='utf-8') as f:
+    async with aiofiles.open('json/kelimeler.json', mode='r', encoding='utf-8') as f:
         data = await f.read()
         kelimeler = json.loads(data)['kelimeler']
     return kelimeler

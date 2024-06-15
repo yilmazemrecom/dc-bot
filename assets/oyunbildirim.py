@@ -13,7 +13,7 @@ import aiofiles
 
 API_URL = 'https://api.isthereanydeal.com/v01/deals/list/'
 
-JSON_FILE = 'indirim.json'
+JSON_FILE = 'json/indirim.json'
 
 
 class Oyunbildirim(commands.Cog):
@@ -21,7 +21,9 @@ class Oyunbildirim(commands.Cog):
         self.bot = bot
         self.check_deals.start()
         self.clear_old_deals.start()
-        self.conn = sqlite3.connect('indirim.db')
+
+        # SQLite veritabanı bağlantısı
+        self.conn = sqlite3.connect('database/indirim.db')
         self.c = self.conn.cursor()
         self.c.execute('''
             CREATE TABLE IF NOT EXISTS GameNotifyChannels (
