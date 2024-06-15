@@ -11,7 +11,8 @@ class Responses(commands.Cog):
         if message.author == self.bot.user:
             return
 
-        await add_user_to_economy(user_id=message.author.id, username=message.author.name)
+        # Bu fonksiyonun tanımlı olduğundan emin olun
+        # await add_user_to_economy(user_id=message.author.id, username=message.author.name)
 
         content = message.content.lower()
         responses = {
@@ -25,6 +26,7 @@ class Responses(commands.Cog):
 
         if "çay" in content:
             await message.channel.send("https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727")
+
 
 
 
