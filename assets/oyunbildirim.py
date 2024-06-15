@@ -13,7 +13,7 @@ import aiofiles
 
 API_URL = 'https://api.isthereanydeal.com/v01/deals/list/'
 
-JSON_FILE = 'indirim.json'
+JSON_FILE = 'json/indirim.json'
 
 
 class Oyunbildirim(commands.Cog):
@@ -21,7 +21,9 @@ class Oyunbildirim(commands.Cog):
         self.bot = bot
         self.check_deals.start()
         self.clear_old_deals.start()
-        self.conn = sqlite3.connect('indirim.db')
+
+        # SQLite veritabanı bağlantısı
+        self.conn = sqlite3.connect('database/indirim.db')
         self.c = self.conn.cursor()
         self.c.execute('''
             CREATE TABLE IF NOT EXISTS GameNotifyChannels (
@@ -51,12 +53,19 @@ class Oyunbildirim(commands.Cog):
         self.clear_old_deals.cancel()
         self.conn.close()
 
-    @commands.command(name='oyunbilayar')
+    @commands.command(name='oyunbildirimac')
     async def oyunbilayar(self, ctx, channel: discord.TextChannel):
         self.c.execute('INSERT OR REPLACE INTO GameNotifyChannels (guild_id, channel_id) VALUES (?, ?)',
                        (ctx.guild.id, channel.id))
         self.conn.commit()
         await ctx.send(f"İndirimdeki oyunlar, 5 dakikada bir {channel.mention} kanalında paylaşılacak. Bence herkes o kanalı sessize alsın xd")
+    
+    @commands.command(name='oyunbildirimkapat')
+    async def oyunbildirimkapat(self, ctx):
+        self.c.execute('DELETE FROM GameNotifyChannels WHERE guild_id = ?', (ctx.guild.id,))
+        self.conn.commit()
+        await ctx.send(f"{ctx.channel.mention} kanalında oyun bildirimleri kapatıldı.")
+
 
     async def load_deals_from_api(self):
         last_checked = datetime.utcnow() - timedelta(minutes=5)
@@ -66,6 +75,7 @@ class Oyunbildirim(commands.Cog):
             'limit': 500,
             'price': '-price_cut',
             'cut': 0,
+            'shop':61,
             'timestamp': last_checked.strftime('%Y-%m-%dT%H:%M:%SZ')
         }
         try:
@@ -111,6 +121,10 @@ class Oyunbildirim(commands.Cog):
 
             if store_id not in ['steam', 'epic']:
                 print(f"{store} mağazasından gelen anlaşma atlanıyor. Title: {title}")
+                continue
+            
+            if discount < 50:
+                print(f"Indirim %{discount} ile yeterli değil, atlanıyor. Title: {title}")
                 continue
 
             now = datetime.now()

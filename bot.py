@@ -17,13 +17,13 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 @bot.event
 async def on_ready():
     await init_db()
-    await bot.change_presence(activity=discord.Game(name="ŞUAN BOT BAKIMDADIR!"))
+    await bot.change_presence(activity=discord.Game(name="Çaycı Test Botu"))
     update_server_info.start()
 
 @tasks.loop(hours=1)  # Her saat başı çalışır
 async def update_server_info():
     sunucular = bot.guilds
-    async with aiosqlite.connect('economy.db') as db:
+    async with aiosqlite.connect('database/economy.db') as db:
         for sunucu in sunucular:
             await db.execute('''
                 INSERT OR REPLACE INTO sunucular (sunucu_id, sunucu_ismi, sunucu_uye_sayisi)
@@ -43,7 +43,11 @@ async def list_commands(ctx):
             "!komutlar: Tüm komutları listeler",
             "",
             "**Genel Komutlar**",
-            "- `!oyunbilayar #kanal`: Kanala Steam ve Epic oyun indirimlerini atar",
+            "- `!oyunbildirimac <#kanal>`: Belirtilan kanal için oyun indirim bildirimlerini açar",
+            "- `!oyunbildirimkapat`: Oyun bildirimlerini kapatır",
+            "- `!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular",
+            "- `!bakiye`: Bakiyeninizi gösterir",
+            "- `!btransfer <kişi etiket> <tutar>`: Belirttiğiniz tutar kadar sikke transferi yapar.",
             "",
             "**Müzik Komutları**",
             "- `!cal <şarkı adı veya URL>`: Belirtilen şarkıyı çalar",
@@ -55,9 +59,6 @@ async def list_commands(ctx):
             "",
             "**Eğlence Komutları:**",
             "Para kazanmak için quiz veya bilmece bilebilirsiniz. Varsayılan bakiyeniz 100 sikke olarak eklenir.",
-            "- `!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular",
-            "- `!bakiye`: Bakiyeninizi gösterir",
-            "- `!btransfer <kişi etiket> <tutar>`: Belirttiğiniz tutar kadar sikke transferi yapar.",
             "- `!bilmece`: Rastgele bir bilmece sorar",
             "- `!zar <bahis> <tahmin>`: Zar oyunu",
             "- `!yazitura <bahis> <yazı/tura>`: Yazı tura oyunu",
@@ -66,7 +67,7 @@ async def list_commands(ctx):
             "- `!rulet <bahis>`: Rulet oyunu. Ya hep ya hiç",
             "",
             "**Takım Oyunu Komutları:**",
-            "- `!takimolustur <takim_adi> <yatirim miktarı>`: Yeni bir takım oluşturur",
+            "- `!takimolustur <takım adı> <yatırım miktarı>`: Yeni bir takım oluşturur",
             "- `!takimyatirim <yatırım miktarı>`: Takımınıza yatırım yapar",
             "- `!macyap <bahis>`: Takımınızla maç yapar",
             "- `!takimim`: Takımınızı gösterir",
@@ -83,7 +84,7 @@ async def list_commands(ctx):
 
 async def load_extensions():
     for extension in ['responses', 'games', 'economy', 'takimoyunu','music', 'oyunbildirim' ]:
-        await bot.load_extension(extension)
+        await bot.load_extension(f'assets.{extension}')
 
 async def main():
     async with bot:

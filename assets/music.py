@@ -83,7 +83,7 @@ class Music(commands.Cog):
 
         # Eğer ses çalınmıyorsa, yerel mp3 dosyasını çalın ve ardından şarkıyı kuyruğa ekleyin
         await ctx.send("Şarkı yükleniyor, lütfen bekleyin...")
-        ctx.voice_client.play(discord.FFmpegPCMAudio('caylar.mp3'), after=lambda e: asyncio.run_coroutine_threadsafe(self.start_playback(ctx, url_or_query), ctx.bot.loop))
+        ctx.voice_client.play(discord.FFmpegPCMAudio('assets/caylar.mp3'), after=lambda e: asyncio.run_coroutine_threadsafe(self.start_playback(ctx, url_or_query), ctx.bot.loop))
 
     async def start_playback(self, ctx, url_or_query):
         await self.prepare_next_song(url_or_query)

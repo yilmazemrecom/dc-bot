@@ -8,8 +8,8 @@ import datetime
 import asyncio
 from util import load_economy, save_economy, add_user_to_economy
 
-DATABASE = 'economy.db'
-WINNERS_FILE = 'lig_kazanan.json'
+DATABASE = 'database/economy.db'
+WINNERS_FILE = 'json/lig_kazanan.json'
 
 class takimoyunu(commands.Cog):
     def __init__(self, bot):
@@ -84,20 +84,20 @@ class takimoyunu(commands.Cog):
     @commands.command()
     async def macyap(self, ctx, bahis: int):
         if bahis <= 0:
-            await ctx.send("Lütfen geçerli bir bahis miktarı belirtin.")
+            await ctx.send(f"{ctx.author.mention} Lütfen geçerli bir bahis miktarı belirtin.")
             return
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
         if bakiye < bahis:
-            await ctx.send("Yeterli bakiyeniz yok.")
+            await ctx.send(f"{ctx.author.mention} Yeterli bakiyeniz yok.")
             return
 
         async with aiosqlite.connect(DATABASE) as db:
             cursor = await db.execute('SELECT * FROM takimlar WHERE user_id = ?', (str(ctx.author.id),))
             kullanici_takimi = await cursor.fetchone()
             if not kullanici_takimi:
-                await ctx.send("Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
+                await ctx.send(f"{ctx.author.mention} Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
                 return
 
             son_mac_zamani = kullanici_takimi[6]
@@ -106,7 +106,7 @@ class takimoyunu(commands.Cog):
             if son_mac_zamani is not None:
                 diff = now - datetime.datetime.fromisoformat(son_mac_zamani)
                 if diff.total_seconds() < 3600:
-                    await ctx.send("Bir saat içinde sadece bir maç yapabilirsiniz.")
+                    await ctx.send(f"{ctx.author.mention} Bir saat içinde sadece bir maç yapabilirsiniz.")
                     return
 
             yeni_miktar = kullanici_takimi[3] - bahis
@@ -124,7 +124,7 @@ class takimoyunu(commands.Cog):
                 kazanan_takim_id = rakip_takimi[0]
                 kaybeden_takim_id = str(ctx.author.id)
 
-            await db.execute('UPDATE takimlar SET miktari = miktari + ? WHERE user_id = ?', (bahis * 2, kazanan_takim_id))
+            await db.execute('UPDATE takimlar SET miktari = miktari + ? WHERE user_id = ?', (bahis, kazanan_takim_id))
             await db.execute('UPDATE takimlar SET miktari = miktari - ? WHERE user_id = ?', (bahis, kaybeden_takim_id))
 
             if kazanan_takim_id == str(ctx.author.id):
@@ -146,7 +146,7 @@ class takimoyunu(commands.Cog):
             row = await cursor.fetchone()
 
         if not row:
-            await ctx.send("Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
+            await ctx.send(f"{ctx.author.mention} Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
             return
 
         mesaj = f"Takım Adı: {row[1]}\n"
