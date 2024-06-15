@@ -78,9 +78,9 @@ class Games(commands.Cog):
         try:
             msg = await self.bot.wait_for('message', timeout=30, check=check)
             if msg.content.lower() == cevap.lower():
-                await ctx.send(f"Tebrikler {ctx.author.mention}, doğru cevap! 5 sikke kazandınız.")
+                await ctx.send(f"Tebrikler {ctx.author.mention}, doğru cevap! 20 sikke kazandınız.")
                 economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
-                new_balance = economy[2] + 10
+                new_balance = economy[2] + 20
                 await save_economy(ctx.author.id, ctx.author.name, new_balance)
             else:
                 await ctx.send(f"Üzgünüm {ctx.author.mention}, yanlış cevap. Doğru cevap: {cevap} ")
