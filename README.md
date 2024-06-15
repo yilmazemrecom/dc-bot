@@ -1,6 +1,6 @@
 # Çaycı
 
-Bu Discord botu, çeşitli eğlence ve ekonomi komutları sunar. Bot, Discord sunucunuza katıldığında çeşitli mesajlar gönderir ve kullanıcılarla etkileşimde bulunur.
+Çaycı Discord botu, çeşitli eğlence ve ekonomi komutları sunar. Bot, Discord sunucunuza katıldığında çeşitli mesajlar gönderir ve kullanıcılarla etkileşimde bulunur.
 
 ## Özellikler
 
