@@ -33,34 +33,34 @@ class Games(commands.Cog):
             await save_economy(ctx.author.id, ctx.author.name, yeni_bakiye)
             await ctx.send(f"Tebrikler {msg.author.mention}! Doğru cevap: {cevap}! {para} sikke kazandınız.")
         except asyncio.TimeoutError:
-            await ctx.send(f"Üzgünüm, zaman doldu. Doğru cevap: {cevap}")
+            await ctx.send(f"{ctx.author.mention}, Üzgünüm, zaman doldu. Doğru cevap: {cevap}")
 
     # Zar komutu
     @commands.command()
     async def zar(self, ctx, bahis: int, tahmin: int):
 
         if bahis <= 0 or tahmin < 1 or tahmin > 6:
-            await ctx.send("Geçerli bir bahis miktarı ve tahmin belirtmelisiniz.")
+            await ctx.send(f"{ctx.author.mention}, Geçerli bir bahis miktarı ve tahmin belirtmelisiniz.")
             return
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
         if bakiye <= 0:
-            await ctx.send("Bakiyeniz 0'dan az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+            await ctx.send(f"{ctx.author.mention}, Bakiyeniz 0'dan az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
             return
         
         if bahis > bakiye:
-            await ctx.send("Yeterli bakiyeniz yok.")
+            await ctx.send(f"{ctx.author.mention}, Yeterli bakiyeniz yok.")
             return
 
         zar_sayisi = random.randint(1, 6)
         if tahmin == zar_sayisi:
             kazanc = bahis * 3
             new_balance = bakiye + kazanc
-            await ctx.send(f"Tebrikler! Zar atılan sayı {zar_sayisi} ve tahmininiz doğru! {kazanc} sikke kazandınız.")
+            await ctx.send(f"{ctx.author.mention} Tebrikler! Zar atılan sayı {zar_sayisi} ve tahmininiz doğru! {kazanc} sikke kazandınız.")
         else:
             new_balance = bakiye - bahis
-            await ctx.send(f"Maalesef! Zar atılan sayı {zar_sayisi} ve tahmininiz {tahmin}. Bilemediniz. {bahis} sikke kaybettiniz.")
+            await ctx.send(f"{ctx.author.mention} Maalesef! Zar atılan sayı {zar_sayisi} ve tahmininiz {tahmin}. Bilemediniz. {bahis} sikke kaybettiniz.")
         await save_economy(ctx.author.id, ctx.author.name, new_balance)
 
     # Quiz komutu
@@ -80,7 +80,7 @@ class Games(commands.Cog):
             if msg.content.lower() == cevap.lower():
                 await ctx.send(f"Tebrikler {ctx.author.mention}, doğru cevap! 5 sikke kazandınız.")
                 economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
-                new_balance = economy[2] + 5
+                new_balance = economy[2] + 10
                 await save_economy(ctx.author.id, ctx.author.name, new_balance)
             else:
                 await ctx.send(f"Üzgünüm {ctx.author.mention}, yanlış cevap. Doğru cevap: {cevap} ")
@@ -91,34 +91,34 @@ class Games(commands.Cog):
     @commands.command()
     async def rulet(self, ctx, bahis: int):
         if bahis <= 0:
-            await ctx.send("Geçerli bir bahis miktarı belirtmelisiniz.")
+            await ctx.send(f"{ctx.author.mention} Geçerli bir bahis miktarı belirtmelisiniz.")
             return
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
         if bakiye <= 0:
-            await ctx.send("Bakiyeniz -0'dan az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+            await ctx.send(f"{ctx.author.mention}, Bakiyeniz 0'dan az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
             return
 
         if bahis > bakiye:
-            await ctx.send("Yeterli bakiyeniz yok.")
+            await ctx.send(f"{ctx.author.mention} Yeterli bakiyeniz yok.")
             return
 
         kazandi = random.choice([True, False])
         if kazandi:
             new_balance = bakiye + bahis
-            await ctx.send(f"Tebrikler! Rulet kazandınız. {bahis} sikke kazandınız.")
+            await ctx.send(f"{ctx.author.mention} Tebrikler! Rulet kazandınız. {bahis} sikke kazandınız.")
         else:
             new_balance = bakiye - bahis
-            await ctx.send(f"Maalesef! Rulet kaybettiniz. {bahis} sikke kaybettiniz.")
+            await ctx.send(f"{ctx.author.mention} Maalesef! Rulet kaybettiniz. {bahis} sikke kaybettiniz.")
         await save_economy(ctx.author.id, ctx.author.name, new_balance)
 
     @rulet.error
     async def rulet_error(self, ctx, error):
         if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send("Lütfen bir bahis miktarı belirtin. Örneğin: `!rulet <bahis miktarı>`")
+            await ctx.send(f"{ctx.author.mention} Lütfen bir bahis miktarı belirtin. Örneğin: `!rulet <bahis miktarı>`")
         elif isinstance(error, commands.BadArgument):
-            await ctx.send("Geçerli bir bahis miktarı belirtmelisiniz.")
+            await ctx.send(f"{ctx.author.mention} Geçerli bir bahis miktarı belirtmelisiniz.")
     
     
     # adam asmaca
@@ -193,7 +193,7 @@ class Games(commands.Cog):
         yanlis_tahminler = set()
         can = len(self.adam_asmaca) - 1
 
-        await ctx.send("Adam asmaca oyununa hoş geldiniz! Kelimeyi tahmin etmek için harfleri yazın.")
+        await ctx.send(f"{ctx.author.mention} Adam asmaca oyununa hoş geldiniz! Kelimeyi tahmin etmek için harfleri yazın.")
         await ctx.send(f"Kelime {len(cevap)} harften oluşuyor.")
 
         while can > 0:
@@ -204,48 +204,48 @@ class Games(commands.Cog):
             tahmin = tahmin.content.lower()
 
             if tahmin in dogru_tahminler or tahmin in yanlis_tahminler:
-                await ctx.send("Bu harfi zaten tahmin ettiniz!")
+                await ctx.send(f"{ctx.author.mention} Bu harfi zaten tahmin ettiniz!")
                 continue
 
             if len(tahmin) > 1 and tahmin == cevap:
-                await ctx.send("Tebrikler, kelimeyi doğru tahmin ettiniz!")
+                await ctx.send(f"{ctx.author.mention} Tebrikler, kelimeyi doğru tahmin ettiniz!")
                 break
 
             if tahmin in cevap:
                 dogru_tahminler.add(tahmin)
                 if set(cevap) == dogru_tahminler:
-                    await ctx.send("Tebrikler, kelimeyi doğru tahmin ettiniz!")
+                    await ctx.send(f"{ctx.author.mention} Tebrikler, kelimeyi doğru tahmin ettiniz!")
                     break
             else:
                 yanlis_tahminler.add(tahmin)
                 can -= 1
-                await ctx.send(f"Yanlış tahmin! Kalan can: {can}\n{self.adam_asmaca[len(self.adam_asmaca) - can - 1]}")
+                await ctx.send(f"{ctx.author.mention} Yanlış tahmin! Kalan can: {can}\n{self.adam_asmaca[len(self.adam_asmaca) - can - 1]}")
 
         if can == 0:
-            await ctx.send(f"Maalesef, kelimeyi bulamadınız! Kelime: {cevap}")
+            await ctx.send(f"{ctx.author.mention} Maalesef, kelimeyi bulamadınız! Kelime: {cevap}")
 
     @commands.command()
     async def yazitura(self, ctx, bahis: int, secim: str):
         # Bahis miktarını kontrol et
         if bahis <= 0:
-            await ctx.send("Geçerli bir bahis miktarı belirtmelisiniz.")
+            await ctx.send(f"{ctx.author.mention} Geçerli bir bahis miktarı belirtmelisiniz.")
             return
 
         # Kullanıcının seçiminin geçerli olup olmadığını kontrol et
         secim = secim.lower()
         if secim not in ["yazı", "tura"]:
-            await ctx.send("Geçerli bir seçim yapmalısınız: yazı veya tura.")
+            await ctx.send(f"{ctx.author.mention} Geçerli bir seçim yapmalısınız: yazı veya tura.")
             return
 
         # Kullanıcının bakiyesini kontrol et
         economy = await add_user_to_economy(user_id=ctx.author.id, username=ctx.author.name)
         bakiye = economy[2]
         if bakiye < bahis:
-            await ctx.send("Yeterli bakiyeniz yok.")
+            await ctx.send(f"{ctx.author.mention} Yeterli bakiyeniz yok.")
             return
 
         if bakiye < -100:
-            await ctx.send("Bakiyeniz -100'den az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
+            await ctx.send(f"{ctx.author.mention} Bakiyeniz -100'den az olduğu için bu oyunu oynayamazsınız. Quiz veya bilmece çözerek bakiyenizi arttırın.")
             return
 
         # Rastgele yazı veya tura seç
@@ -256,11 +256,11 @@ class Games(commands.Cog):
             kazanc = bahis * 2
             yeni_bakiye = bakiye + kazanc
             await save_economy(ctx.author.id, ctx.author.name, yeni_bakiye)
-            await ctx.send(f"Tebrikler! Sonuç {yanit}, tahmininiz doğru! {kazanc} sikke kazandınız.")
+            await ctx.send(f"{ctx.author.mention} Tebrikler! Sonuç {yanit}, tahmininiz doğru! {kazanc} sikke kazandınız.")
         else:
             yeni_bakiye = bakiye - bahis
             await save_economy(ctx.author.id, ctx.author.name, yeni_bakiye)
-            await ctx.send(f"Maalesef! Sonuç {yanit}, tahmininiz {secim}. Bilemediniz. {bahis} sikke kaybettiniz.")
+            await ctx.send(f"{ctx.author.mention} Maalesef! Sonuç {yanit}, tahmininiz {secim}. Bilemediniz. {bahis} sikke kaybettiniz.")
 
 
 
