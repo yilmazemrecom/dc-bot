@@ -17,17 +17,22 @@ Bu Discord botu, çeşitli eğlence ve ekonomi komutları sunar. Bot, Discord su
 ### Genel Komutlar
 
 - `!komutlar`: Tüm komutları listeler
-- `selam`: Bot ile selamlaşır
+- `çaycı`: Çay mı istediğini sorar
+- `çay`: Çay getirir
 - `dolar`: 1 doların kaç TL olduğunu gösterir
 - `!bakiye`: Bakiyenizi gösterir
 - `!btransfer <kullanıcı> <miktar>`: Belirtilen kullanıcıya belirtilen miktarda sikke gönderir
+- `!siralama`: En zengin 20 kişiyi sıralar
+- `!oyunbilayar <#kanal adı>`: Steam ve Epic games oyun indirimleri paylaşır.
+
+### Eğlence Komutları
 - `!bilmece`: Rastgele bir bilmece sorar
 - `!quiz`: Rastgele bir quiz sorusu sorar
 - `!zar <bahis> <tahmin>`: Zar oyunu oynar
 - `!yazitura <bahis> <seçim>`: Yazı-tura oyunu oynar
 - `!asmaca`: Adam asmaca oyunu oynar
 - `!rulet <bahis>`: Rulet oyunu oynar
-- `!siralama`: En zengin 20 kişiyi sıralar
+
 
 ### Takım Oyunu Komutları
 
@@ -36,24 +41,6 @@ Bu Discord botu, çeşitli eğlence ve ekonomi komutları sunar. Bot, Discord su
 - `!macyap <bahis>`: Takımınızla maç yapar
 - `!takimim`: Takımınızı gösterir
 
-## Eğlence Komutları
-
-- `sa`: Aleyküm selam!
-- `selam`: Merhaba!
-- `nasılsın`: Botun nasıl olduğunu sorar
-- `hoş geldin`: Hoş geldin mesajı verir
-- `görüşürüz`: Görüşürüz mesajı verir
-- `naber`: Nasıl olduğunu sorar
-- `iyi`: İyi olduğunu belirtir
-- `kötü`: Kötü olduğunu belirtir
-- `teşekkürler`: Teşekkür eder
-- `iyi geceler`: İyi geceler mesajı verir
-- `günaydın`: Günaydın mesajı verir
-- `iyi akşamlar`: İyi akşamlar mesajı verir
-- `iyi günler`: İyi günler mesajı verir
-- `çay`: Çay getirir
-- `kahve`: Kahve getirir (belki de getirmez)
-- `çaycı`: Çay mı istediğini sorar
 
 ## Müzik Komutları
 
