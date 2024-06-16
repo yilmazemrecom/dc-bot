@@ -83,9 +83,10 @@ class takimoyunu(commands.Cog):
  
     @commands.command()
     async def macyap(self, ctx, bahis: int):
-        if bahis <= 0:
-            await ctx.send(f"{ctx.author.mention} Lütfen geçerli bir bahis miktarı belirtin.")
+        if bahis < 2 or bahis > 1000:
+            await ctx.send(f"{ctx.author.mention} Lütfen geçerli bir bahis miktarı belirtin. Bahis miktarı en az 2 ve en fazla 1000 olabilir.")
             return
+
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
@@ -125,7 +126,7 @@ class takimoyunu(commands.Cog):
                 kaybeden_takim_id = str(ctx.author.id)
 
             await db.execute('UPDATE takimlar SET miktari = miktari + ? WHERE user_id = ?', (bahis, kazanan_takim_id))
-            await db.execute('UPDATE takimlar SET miktari = miktari - ? WHERE user_id = ?', (bahis, kaybeden_takim_id))
+            await db.execute('UPDATE takimlar SET miktari = miktari - ? WHERE user_id = ?', (bahis / 2, kaybeden_takim_id))
 
             if kazanan_takim_id == str(ctx.author.id):
                 await ctx.send(f"{ctx.author.mention}, '{kullanici_takimi[1]}' takımı '{rakip_takimi[1]}' takımını mağlup etti! {bahis * 2} sikke kazandınız.")
