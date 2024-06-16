@@ -27,7 +27,8 @@ async def init_db():
                 kaptan TEXT,
                 miktari INTEGER,
                 kazanilan_mac INTEGER,
-                kaybedilen_mac INTEGER
+                kaybedilen_mac INTEGER,
+                son_yatirim_zamani TEXT
             )
         ''')
         await db.commit()

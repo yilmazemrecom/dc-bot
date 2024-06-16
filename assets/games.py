@@ -6,7 +6,7 @@ import aiosqlite
 import json
 import aiofiles
 
-DATABASE = 'economy.db'
+DATABASE = 'database/economy.db'
 
 class Games(commands.Cog):
     def __init__(self, bot):
@@ -28,7 +28,7 @@ class Games(commands.Cog):
         try:
             msg = await self.bot.wait_for('message', timeout=30, check=check)
             economy = await add_user_to_economy(user_id=ctx.author.id, username=ctx.author.name)
-            para = random.randint(1, 100)
+            para = random.randint(1, 20)
             yeni_bakiye = economy[2] + para
             await save_economy(ctx.author.id, ctx.author.name, yeni_bakiye)
             await ctx.send(f"Tebrikler {msg.author.mention}! Doğru cevap: {cevap}! {para} sikke kazandınız.")
