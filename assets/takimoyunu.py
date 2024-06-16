@@ -7,6 +7,8 @@ import aiofiles
 import datetime
 import asyncio
 from util import load_economy, save_economy, add_user_to_economy
+from datetime import datetime, timedelta
+
 
 DATABASE = 'database/economy.db'
 WINNERS_FILE = 'json/lig_kazanan.json'
@@ -18,7 +20,7 @@ class takimoyunu(commands.Cog):
 
     @commands.command()
     async def takimolustur(self, ctx, takim_adi: str, miktari: int):
-        async with aiofiles.open('kufur_listesi.json', 'r', encoding='utf-8') as file:
+        async with aiofiles.open('json/kufur_listesi.json', 'r', encoding='utf-8') as file:
             kufur_listesi_json = await file.read()
 
         kufur_listesi = json.loads(kufur_listesi_json)["kufurler"]
@@ -72,8 +74,21 @@ class takimoyunu(commands.Cog):
                 await ctx.send("Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
                 return
 
+            # 'son_yatirim_zamani' sütununu kontrol edin
+            son_yatirim_zamani = row[6]  # Son yatırım zamanı sütununun indeksini doğru şekilde ayarlayın
+            if son_yatirim_zamani:
+                son_yatirim_zamani = datetime.strptime(son_yatirim_zamani, '%Y-%m-%d %H:%M:%S')
+                suanki_zaman = datetime.now()
+                if suanki_zaman - son_yatirim_zamani < timedelta(hours=5):
+                    kalan_sure = timedelta(hours=5) - (suanki_zaman - son_yatirim_zamani)
+                    saat, dakika, saniye = kalan_sure.seconds // 3600, (kalan_sure.seconds // 60) % 60, kalan_sure.seconds % 60
+                    await ctx.send(f"Son yatırımınızdan bu yana 5 saat geçmedi. Kalan süre: {saat} saat, {dakika} dakika, {saniye} saniye. Lütfen daha sonra tekrar deneyin.")
+                    return
+
             yeni_miktar = row[3] + miktar
-            await db.execute('UPDATE takimlar SET miktari = ? WHERE user_id = ?', (yeni_miktar, str(ctx.author.id)))
+            yeni_yatirim_zamani = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            await db.execute('UPDATE takimlar SET miktari = ?, son_yatirim_zamani = ? WHERE user_id = ?',
+                            (yeni_miktar, yeni_yatirim_zamani, str(ctx.author.id)))
             await db.commit()
 
         new_balance = bakiye - miktar
@@ -102,7 +117,7 @@ class takimoyunu(commands.Cog):
                 return
 
             son_mac_zamani = kullanici_takimi[6]
-            now = datetime.datetime.now()
+            now = datetime.now()
 
             if son_mac_zamani is not None:
                 diff = now - datetime.datetime.fromisoformat(son_mac_zamani)
@@ -177,7 +192,7 @@ class takimoyunu(commands.Cog):
 
     @tasks.loop(hours=24)
     async def reset_lig(self):
-        now = datetime.datetime.now()
+        now = datetime.now()
         if now.day == 1:
             async with aiosqlite.connect(DATABASE) as db:
                 cursor = await db.execute('SELECT takim_adi, kaptan FROM takimlar ORDER BY kazanilan_mac DESC LIMIT 1')
