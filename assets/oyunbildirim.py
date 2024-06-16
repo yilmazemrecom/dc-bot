@@ -11,7 +11,7 @@ import aiofiles
 
 # IsThereAnyDeal API ayarları
 
-API_URL = 'https://api.isthereanydeal.com/v01/deals/list/'
+API_URL = 'https://api.isthereanydeal.com/deals/v2'
 
 JSON_FILE = 'json/indirim.json'
 
@@ -73,10 +73,11 @@ class Oyunbildirim(commands.Cog):
             'key': API_KEY,
             'country': 'TR',
             'limit': 500,
-            'price': '-price_cut',
-            'cut': 0,
-            'shop':61,
-            'timestamp': last_checked.strftime('%Y-%m-%dT%H:%M:%SZ')
+            'shops':61,
+            'sort':'rank',
+            'mature':'false',
+            'filter':'N4IgxgrgLiBcoFsCWA7OBWADAGhAghgB5wCMmmAvrgCYBOCcA2gGwkC6uUAngA4CmTdrgDOACwD2PYU1ZsKQA==='
+
         }
         try:
             response = requests.get(API_URL, params=params, verify=False)
@@ -108,20 +109,17 @@ class Oyunbildirim(commands.Cog):
                 print("Title yok, atlanıyor.")
                 continue
 
-            new_price = deal.get('price_new')
-            old_price = deal.get('price_old')
-            discount = deal.get('price_cut')
-            store = deal.get('shop', {}).get('name')
-            store_id = deal.get('shop', {}).get('id')
-            url = deal.get('urls', {}).get('buy')
-
+            new_price = deal.get('deal', {}).get('price', {}).get('amount')
+            old_price = deal.get('deal', {}).get('regular', {}).get('amount')
+            discount = deal.get('deal', {}).get('cut', {})
+            store = deal.get('deal', {}).get('shop', {}).get('name')
+            store_id =deal.get('deal', {}).get('shop', {}).get('id')
+            url = deal.get('deal', {}).get('url')
+            
             if new_price is None or old_price is None or discount is None or store is None or url is None:
                 print(f"Eksik bilgiler var, atlanıyor. Title: {title}")
                 continue
 
-            if store_id not in ['steam', 'epic']:
-                print(f"{store} mağazasından gelen anlaşma atlanıyor. Title: {title}")
-                continue
             
             if discount < 50:
                 print(f"Indirim %{discount} ile yeterli değil, atlanıyor. Title: {title}")
