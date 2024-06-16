@@ -6,7 +6,7 @@ import aiosqlite
 import json
 import aiofiles
 
-DATABASE = 'economy.db'
+DATABASE = 'database/economy.db'
 
 class Games(commands.Cog):
     def __init__(self, bot):
