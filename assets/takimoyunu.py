@@ -98,10 +98,9 @@ class takimoyunu(commands.Cog):
  
     @commands.command()
     async def macyap(self, ctx, bahis: int):
-        if bahis < 2 or bahis > 1000:
+        if bahis <= 1 or bahis >= 1001:
             await ctx.send(f"{ctx.author.mention} Lütfen geçerli bir bahis miktarı belirtin. Bahis miktarı en az 2 ve en fazla 1000 olabilir.")
             return
-
 
         economy = await add_user_to_economy(ctx.author.id, ctx.author.name)
         bakiye = economy[2]
@@ -116,13 +115,16 @@ class takimoyunu(commands.Cog):
                 await ctx.send(f"{ctx.author.mention} Henüz bir takımınız yok. İlk önce bir takım oluşturun.")
                 return
 
-            son_mac_zamani = kullanici_takimi[6]
+            son_mac_zamani = kullanici_takimi[7]
             now = datetime.now()
 
             if son_mac_zamani is not None:
-                diff = now - datetime.datetime.fromisoformat(son_mac_zamani)
+                diff = now - datetime.fromisoformat(son_mac_zamani)
                 if diff.total_seconds() < 3600:
-                    await ctx.send(f"{ctx.author.mention} Bir saat içinde sadece bir maç yapabilirsiniz.")
+                    kalan_sure = 3600 - diff.total_seconds()
+                    dakika = kalan_sure // 60
+                    saniye = kalan_sure % 60
+                    await ctx.send(f"{ctx.author.mention} Bir saat içinde sadece bir maç yapabilirsiniz. Kalan süre: {int(dakika)} dakika {int(saniye)} saniye.")
                     return
 
             yeni_miktar = kullanici_takimi[3] - bahis
@@ -131,6 +133,10 @@ class takimoyunu(commands.Cog):
 
             cursor = await db.execute('SELECT * FROM takimlar WHERE user_id != ?', (str(ctx.author.id),))
             rakip_takimlar = await cursor.fetchall()
+            if not rakip_takimlar:
+                await ctx.send(f"{ctx.author.mention} Maç yapacak rakip bulunamadı.")
+                return
+
             rakip_takimi = random.choice(rakip_takimlar)
 
             if kullanici_takimi[3] > rakip_takimi[3]:
@@ -141,7 +147,7 @@ class takimoyunu(commands.Cog):
                 kaybeden_takim_id = str(ctx.author.id)
 
             await db.execute('UPDATE takimlar SET miktari = miktari + ? WHERE user_id = ?', (bahis, kazanan_takim_id))
-            await db.execute('UPDATE takimlar SET miktari = miktari - ? WHERE user_id = ?', (bahis / 2, kaybeden_takim_id))
+            await db.execute('UPDATE takimlar SET miktari = miktari - ? WHERE user_id = ?', (max(0, bahis / 2), kaybeden_takim_id))
 
             if kazanan_takim_id == str(ctx.author.id):
                 await ctx.send(f"{ctx.author.mention}, '{kullanici_takimi[1]}' takımı '{rakip_takimi[1]}' takımını mağlup etti! {bahis * 2} sikke kazandınız.")
@@ -154,6 +160,7 @@ class takimoyunu(commands.Cog):
                 await db.execute('UPDATE takimlar SET kazanilan_mac = kazanilan_mac + 1 WHERE user_id = ?', (kazanan_takim_id,))
 
             await db.commit()
+
 
     @commands.command()
     async def takimim(self, ctx):
