@@ -1,20 +1,15 @@
 from config import API_KEY
 import requests
 import discord
-from discord.ext import commands,tasks
+from discord.ext import commands, tasks
 import sqlite3
 from datetime import datetime, timedelta
 import json
 import os
 import aiofiles
 
-
-# IsThereAnyDeal API ayarları
-
 API_URL = 'https://api.isthereanydeal.com/deals/v2'
-
 JSON_FILE = 'json/indirim.json'
-
 
 class Oyunbildirim(commands.Cog):
     def __init__(self, bot):
@@ -66,18 +61,15 @@ class Oyunbildirim(commands.Cog):
         self.conn.commit()
         await ctx.send(f"{ctx.channel.mention} kanalında oyun bildirimleri kapatıldı.")
 
-
     async def load_deals_from_api(self):
-        last_checked = datetime.utcnow() - timedelta(minutes=5)
         params = {
             'key': API_KEY,
             'country': 'TR',
             'limit': 500,
-            'shops':61,
-            'sort':'rank',
-            'mature':'false',
-            'filter':'N4IgxgrgLiBcoFsCWA7OBWADAGhAghgB5wCMmmAvrgCYBOCcA2gGwkC6uUAngA4CmTdrgDOACwD2PYU1ZsKQA==='
-
+            'shops': 61,
+            'sort': 'rank',
+            'mature': 'false',
+            'filter': 'N4IgxgrgLiBcoFsCWA7OBWADAGhAghgB5wCMmmAvrgCYBOCcA2gGwkC6uUAngA4CmTdrgDOACwD2PYU1ZsKQA==='
         }
         try:
             response = requests.get(API_URL, params=params, verify=False)
@@ -110,42 +102,36 @@ class Oyunbildirim(commands.Cog):
         self.c.execute('SELECT guild_id, channel_id FROM GameNotifyChannels')
         channels = self.c.fetchall()
 
-        # Dictionary to track if a deal has been shared for a guild
-        shared_deals = {guild_id: False for guild_id, _ in channels}
-        
-        for deal in deals:
-            title = deal.get('title')
-            if not title:
-                print("Title yok, atlanıyor.")
-                continue
+        for guild_id, channel_id in channels:
+            shared_deals = set()
+            # Find a deal that hasn't been posted in this guild
+            for deal in deals:
+                title = deal.get('title')
+                if not title or title in shared_deals:
+                    continue
 
-            new_price = deal.get('deal', {}).get('price', {}).get('amount')
-            old_price = deal.get('deal', {}).get('regular', {}).get('amount')
-            discount = deal.get('deal', {}).get('cut', {})
-            store = deal.get('deal', {}).get('shop', {}).get('name')
-            url = deal.get('deal', {}).get('url')
+                new_price = deal.get('deal', {}).get('price', {}).get('amount')
+                old_price = deal.get('deal', {}).get('regular', {}).get('amount')
+                discount = deal.get('deal', {}).get('cut', {})
+                store = deal.get('deal', {}).get('shop', {}).get('name')
+                url = deal.get('deal', {}).get('url')
 
-            if new_price is None or old_price is None or discount is None or store is None or url is None:
-                print(f"Eksik bilgiler var, atlanıyor. Title: {title}")
-                continue
+                if new_price is None or old_price is None or discount is None or store is None or url is None:
+                    continue
 
-            if discount < 50:
-                print(f"Indirim %{discount} ile yeterli değil, atlanıyor. Title: {title}")
-                continue
+                if discount < 50:
+                    continue
 
-            now = datetime.now()
-            for guild_id, channel_id in channels:
                 if not self.check_if_deal_exists_for_guild(title, guild_id):
+                    now = datetime.now()
                     await self.notify_channel(guild_id, channel_id, title, new_price, old_price, discount, store, url, now)
-                    shared_deals[guild_id] = True
+                    shared_deals.add(title)
+                    break  # Move to the next guild after posting a deal
+        
+        # Update JSON file with remaining deals
+        async with aiofiles.open(JSON_FILE, 'w') as f:
+            await f.write(json.dumps(deals))
 
-            # Update JSON file with remaining deals
-            async with aiofiles.open(JSON_FILE, 'w') as f:
-                await f.write(json.dumps(deals))
-            
-            # Remove the deal from the list if it has been shared in at least one guild
-            if any(shared_deals.values()):
-                break  # Exit the loop once a deal has been shared
     def check_if_deal_exists_for_guild(self, title, guild_id):
         self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ? AND guild_id = ?", (title, guild_id))
         result = self.c.fetchone()
@@ -162,7 +148,7 @@ class Oyunbildirim(commands.Cog):
             print(f"Saved deal {title} to DB for guild {guild_id}, channel {channel_id}")
         except sqlite3.IntegrityError:
             print(f"Deal {title} already exists in DB for guild {guild_id}, channel {channel_id}")
-            
+
     async def notify_channel(self, guild_id, channel_id, title, new_price, old_price, discount, store, url, now):
         channel = self.bot.get_channel(int(channel_id))
         if channel:
@@ -176,10 +162,6 @@ class Oyunbildirim(commands.Cog):
             )
             await channel.send(message)
             self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
-
-    def check_if_deal_exists_for_guild(self, title, guild_id):
-        self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ? AND guild_id = ? AND DATE(last_shared) = DATE('now')", (title, guild_id))
-        return self.c.fetchone() is not None
 
     @tasks.loop(hours=360)  # 15 günde bir
     async def clear_old_deals(self):
