@@ -102,13 +102,12 @@ class Oyunbildirim(commands.Cog):
         self.c.execute('SELECT guild_id, channel_id FROM GameNotifyChannels')
         channels = self.c.fetchall()
 
-        posted_titles = set()
-        
         for guild_id, channel_id in channels:
-            # Find a deal that hasn't been posted in this guild and is not in posted_titles
+            # Iterate over deals until we find one that hasn't been posted in this guild
             for deal in deals:
                 title = deal.get('title')
-                if not title or title in posted_titles:
+                if not title:
+                    print("Title yok, atlanıyor.")
                     continue
 
                 new_price = deal.get('deal', {}).get('price', {}).get('amount')
@@ -126,7 +125,6 @@ class Oyunbildirim(commands.Cog):
                 if not self.check_if_deal_exists_for_guild(title, guild_id):
                     now = datetime.now()
                     await self.notify_channel(guild_id, channel_id, title, new_price, old_price, discount, store, url, now)
-                    posted_titles.add(title)
                     break  # Move to the next guild after posting a deal
         
         # Update JSON file with remaining deals
