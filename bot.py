@@ -24,13 +24,30 @@ async def on_ready():
 async def update_server_info():
     sunucular = bot.guilds
     async with aiosqlite.connect('database/economy.db') as db:
+        # Veritabanındaki mevcut sunucuları al
+        async with db.execute('SELECT sunucu_id FROM sunucular') as cursor:
+            mevcut_sunucu_ids = [row[0] for row in await cursor.fetchall()]
+
+        # Mevcut sunucular ile botun bağlı olduğu sunucuları karşılaştır
+        bot_sunucu_ids = [sunucu.id for sunucu in sunucular]
+        
+        # Botun artık bağlı olmadığı sunucuları sil
+        silinecek_sunucu_ids = set(mevcut_sunucu_ids) - set(bot_sunucu_ids)
+        if silinecek_sunucu_ids:
+            await db.executemany('DELETE FROM sunucular WHERE sunucu_id = ?', 
+                                 [(sunucu_id,) for sunucu_id in silinecek_sunucu_ids])
+            print(f"{len(silinecek_sunucu_ids)} sunucu silindi.")
+
+        # Mevcut sunucuların bilgilerini güncelle veya ekle
         for sunucu in sunucular:
             await db.execute('''
                 INSERT OR REPLACE INTO sunucular (sunucu_id, sunucu_ismi, sunucu_uye_sayisi)
                 VALUES (?, ?, ?)
             ''', (sunucu.id, sunucu.name, sunucu.member_count))
+        
         await db.commit()
     print("Sunucu bilgileri güncellendi.")
+
 
 @update_server_info.before_loop
 async def before_update_server_info():

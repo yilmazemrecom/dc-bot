@@ -102,8 +102,18 @@ class Oyunbildirim(commands.Cog):
     @tasks.loop(minutes=5.0)
     async def check_deals(self):
         deals = await self.load_deals_from_file()
-        while deals:
-            deal = deals.pop(0)  # İlk anlaşmayı al ve listeden çıkar
+        if not deals:
+            print("No deals available to check.")
+            return
+        
+        # Get the list of channels to notify
+        self.c.execute('SELECT guild_id, channel_id FROM GameNotifyChannels')
+        channels = self.c.fetchall()
+
+        # Dictionary to track if a deal has been shared for a guild
+        shared_deals = {guild_id: False for guild_id, _ in channels}
+        
+        for deal in deals:
             title = deal.get('title')
             if not title:
                 print("Title yok, atlanıyor.")
@@ -113,33 +123,33 @@ class Oyunbildirim(commands.Cog):
             old_price = deal.get('deal', {}).get('regular', {}).get('amount')
             discount = deal.get('deal', {}).get('cut', {})
             store = deal.get('deal', {}).get('shop', {}).get('name')
-            store_id =deal.get('deal', {}).get('shop', {}).get('id')
             url = deal.get('deal', {}).get('url')
-            
+
             if new_price is None or old_price is None or discount is None or store is None or url is None:
                 print(f"Eksik bilgiler var, atlanıyor. Title: {title}")
                 continue
 
-            
             if discount < 50:
                 print(f"Indirim %{discount} ile yeterli değil, atlanıyor. Title: {title}")
                 continue
 
             now = datetime.now()
+            for guild_id, channel_id in channels:
+                if not self.check_if_deal_exists_for_guild(title, guild_id):
+                    await self.notify_channel(guild_id, channel_id, title, new_price, old_price, discount, store, url, now)
+                    shared_deals[guild_id] = True
 
-            if self.check_if_deal_exists(title):
-                print(f"Deal {title} already shared today.")
-                continue  # Veritabanında mevcutsa sonraki anlaşmaya geç
-
-            await self.notify_channels(title, new_price, old_price, discount, store, url, now)
+            # Update JSON file with remaining deals
             async with aiofiles.open(JSON_FILE, 'w') as f:
-                await f.write(json.dumps(deals))  # JSON dosyasını güncelle
-            break
-
-    def check_if_deal_exists(self, title):
-        self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ?", (title,))
+                await f.write(json.dumps(deals))
+            
+            # Remove the deal from the list if it has been shared in at least one guild
+            if any(shared_deals.values()):
+                break  # Exit the loop once a deal has been shared
+    def check_if_deal_exists_for_guild(self, title, guild_id):
+        self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ? AND guild_id = ?", (title, guild_id))
         result = self.c.fetchone()
-        print(f"Check if deal exists: {title}, result: {result}")
+        print(f"Check if deal exists: {title} for guild {guild_id}, result: {result}")
         return result is not None
 
     def save_deal(self, title, guild_id, channel_id, new_price, old_price, discount, store, url, now):
@@ -152,25 +162,20 @@ class Oyunbildirim(commands.Cog):
             print(f"Saved deal {title} to DB for guild {guild_id}, channel {channel_id}")
         except sqlite3.IntegrityError:
             print(f"Deal {title} already exists in DB for guild {guild_id}, channel {channel_id}")
-
-    async def notify_channels(self, title, new_price, old_price, discount, store, url, now):
-        self.c.execute('SELECT guild_id, channel_id FROM GameNotifyChannels')
-        channels = self.c.fetchall()
-        for guild_id, channel_id in channels:
-            if not self.check_if_deal_exists_for_guild(title, guild_id):
-                channel = self.bot.get_channel(int(channel_id))
-                if channel:
-                    message = (
-                        f"Yeni Oyun İndirimi: **{title}**!\n"
-                        f"Yeni Fiyat: {new_price} TL\n"
-                        f"Eski Fiyat: {old_price} TL\n"
-                        f"İndirim: %{discount}\n"
-                        f"Mağaza: {store}\n"
-                        f"[Oyun Linki]({url})"
-                    )
-                    await channel.send(message)
-                    self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
-
+            
+    async def notify_channel(self, guild_id, channel_id, title, new_price, old_price, discount, store, url, now):
+        channel = self.bot.get_channel(int(channel_id))
+        if channel:
+            message = (
+                f"Yeni Oyun İndirimi: **{title}**!\n"
+                f"Yeni Fiyat: {new_price} TL\n"
+                f"Eski Fiyat: {old_price} TL\n"
+                f"İndirim: %{discount}\n"
+                f"Mağaza: {store}\n"
+                f"[Oyun Linki]({url})"
+            )
+            await channel.send(message)
+            self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
 
     def check_if_deal_exists_for_guild(self, title, guild_id):
         self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ? AND guild_id = ? AND DATE(last_shared) = DATE('now')", (title, guild_id))
