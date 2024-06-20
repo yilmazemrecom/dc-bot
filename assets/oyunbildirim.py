@@ -102,12 +102,13 @@ class Oyunbildirim(commands.Cog):
         self.c.execute('SELECT guild_id, channel_id FROM GameNotifyChannels')
         channels = self.c.fetchall()
 
+        posted_titles = set()
+        
         for guild_id, channel_id in channels:
-            shared_deals = set()
-            # Find a deal that hasn't been posted in this guild
+            # Find a deal that hasn't been posted in this guild and is not in posted_titles
             for deal in deals:
                 title = deal.get('title')
-                if not title or title in shared_deals:
+                if not title or title in posted_titles:
                     continue
 
                 new_price = deal.get('deal', {}).get('price', {}).get('amount')
@@ -125,7 +126,7 @@ class Oyunbildirim(commands.Cog):
                 if not self.check_if_deal_exists_for_guild(title, guild_id):
                     now = datetime.now()
                     await self.notify_channel(guild_id, channel_id, title, new_price, old_price, discount, store, url, now)
-                    shared_deals.add(title)
+                    posted_titles.add(title)
                     break  # Move to the next guild after posting a deal
         
         # Update JSON file with remaining deals
@@ -165,7 +166,7 @@ class Oyunbildirim(commands.Cog):
 
     @tasks.loop(hours=360)  # 15 günde bir
     async def clear_old_deals(self):
-        self.c.execute("DELETE FROM PostedDeals WHERE last_shared < DATE('now', '-15 days')")
+        self.c.execute("DELETE FROM PostedDeals WHERE last_shared < DATETIME('now', '-15 days')")
         self.conn.commit()
         print("Eski indirimler silindi.")
 
