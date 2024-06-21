@@ -66,10 +66,9 @@ class Oyunbildirim(commands.Cog):
             'key': API_KEY,
             'country': 'TR',
             'limit': 500,
-            'shops': 61,
             'sort': 'rank',
             'mature': 'false',
-            'filter': 'N4IgxgrgLiBcoFsCWA7OBWADAGhAghgB5wCMmmAvrgCYBOCcA2gGwkC6uUAngA4CmTdrgDOACwD2PYU1ZsKQA==='
+            'filter': 'N4IgxgrgLiBcoFsCWA7OBWADAGhAghgB5wCMmmAvrgCYBOCcA2iQGzYskC6uADgDb4oAMwD29JiWwAmbAGZuIKAE8eAUwlyFytQDkRMWIwDs2ABwKU+gAq1VAeVrVVtOFFoRVuAM5RV+BFbOYHCIqBg4eESk5FR4qlD4AMK0SFBIwfB4YbCyEQTEsGSUuAjx+ACqXs4hWWiwACx5UYUx3r7+iSIQKAahdSSN5CXNKBB8fLFeABYiPF5MHNiscujsMvXmuLZ8flUAmn4umch1UphkwwVnUiwUFEA='
         }
         try:
             response = requests.get(API_URL, params=params, verify=False)
@@ -91,7 +90,7 @@ class Oyunbildirim(commands.Cog):
         async with aiofiles.open(JSON_FILE, 'r') as f:
             return json.loads(await f.read())
 
-    @tasks.loop(minutes=5.0)
+    @tasks.loop(minutes=60.0)
     async def check_deals(self):
         deals = await self.load_deals_from_file()
         if not deals:
