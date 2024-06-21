@@ -53,7 +53,7 @@ class Oyunbildirim(commands.Cog):
         self.c.execute('INSERT OR REPLACE INTO GameNotifyChannels (guild_id, channel_id) VALUES (?, ?)',
                        (ctx.guild.id, channel.id))
         self.conn.commit()
-        await ctx.send(f"İndirimdeki oyunlar, 5 dakikada bir {channel.mention} kanalında paylaşılacak. Bence herkes o kanalı sessize alsın xd")
+        await ctx.send(f"İndirimdeki oyunlar, saatte bir {channel.mention} kanalında paylaşılacak.")
     
     @commands.command(name='oyunbildirimkapat')
     async def oyunbildirimkapat(self, ctx):
