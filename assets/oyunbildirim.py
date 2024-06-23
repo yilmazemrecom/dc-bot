@@ -1,8 +1,8 @@
 from config import API_KEY
-import requests
+import aiohttp
 import discord
 from discord.ext import commands, tasks
-import sqlite3
+import aiosqlite
 from datetime import datetime, timedelta
 import json
 import os
@@ -18,16 +18,19 @@ class Oyunbildirim(commands.Cog):
         self.clear_old_deals.start()
 
         # SQLite veritabanı bağlantısı
-        self.conn = sqlite3.connect('database/indirim.db')
-        self.c = self.conn.cursor()
-        self.c.execute('''
+        self.bot.loop.create_task(self.init_db())
+
+    async def init_db(self):
+        self.conn = await aiosqlite.connect('database/indirim.db')
+        self.c = await self.conn.cursor()
+        await self.c.execute('''
             CREATE TABLE IF NOT EXISTS GameNotifyChannels (
                 guild_id TEXT NOT NULL,
                 channel_id TEXT NOT NULL,
                 PRIMARY KEY (guild_id, channel_id)
             )
         ''')
-        self.c.execute('''
+        await self.c.execute('''
             CREATE TABLE IF NOT EXISTS PostedDeals (
                 title TEXT NOT NULL,
                 guild_id TEXT NOT NULL,
@@ -41,7 +44,7 @@ class Oyunbildirim(commands.Cog):
                 PRIMARY KEY (title, guild_id, channel_id)
             )
         ''')
-        self.conn.commit()
+        await self.conn.commit()
 
     def cog_unload(self):
         self.check_deals.cancel()
@@ -50,15 +53,15 @@ class Oyunbildirim(commands.Cog):
 
     @commands.command(name='oyunbildirimac')
     async def oyunbilayar(self, ctx, channel: discord.TextChannel):
-        self.c.execute('INSERT OR REPLACE INTO GameNotifyChannels (guild_id, channel_id) VALUES (?, ?)',
+        await self.c.execute('INSERT OR REPLACE INTO GameNotifyChannels (guild_id, channel_id) VALUES (?, ?)',
                        (ctx.guild.id, channel.id))
-        self.conn.commit()
+        await self.conn.commit()
         await ctx.send(f"İndirimdeki oyunlar, saatte bir {channel.mention} kanalında paylaşılacak.")
     
     @commands.command(name='oyunbildirimkapat')
     async def oyunbildirimkapat(self, ctx):
-        self.c.execute('DELETE FROM GameNotifyChannels WHERE guild_id = ?', (ctx.guild.id,))
-        self.conn.commit()
+        await self.c.execute('DELETE FROM GameNotifyChannels WHERE guild_id = ?', (ctx.guild.id,))
+        await self.conn.commit()
         await ctx.send(f"{ctx.channel.mention} kanalında oyun bildirimleri kapatıldı.")
 
     async def load_deals_from_api(self):
@@ -71,17 +74,18 @@ class Oyunbildirim(commands.Cog):
             'filter': 'N4IgxgrgLiBcoFsCWA7OBWADAGhAghgB5wCMmmAvrgCYBOCcA2iQGzYskC6uADgDb4oAMwD29JiWwAmbAGZuIKAE8eAUwlyFytQDkRMWIwDs2ABwKU+gAq1VAeVrVVtOFFoRVuAM5RV+BFbOYHCIqBg4eESk5FR4qlD4AMK0SFBIwfB4YbCyEQTEsGSUuAjx+ACqXs4hWWiwACx5UYUx3r7+iSIQKAahdSSN5CXNKBB8fLFeABYiPF5MHNiscujsMvXmuLZ8flUAmn4umch1UphkwwVnUiwUFEA='
         }
         try:
-            response = requests.get(API_URL, params=params, verify=False)
-            response.raise_for_status()
-            data = response.json()
-            deals = data.get('list', [])
-            if not deals:
-                print("API'den oyun verisi alınamadı.")
-                return
-            async with aiofiles.open(JSON_FILE, 'w') as f:
-                await f.write(json.dumps(deals))
-            print(f"{len(deals)} indirimli oyun JSON dosyasına kaydedildi.")
-        except requests.exceptions.RequestException as e:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(API_URL, params=params) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+                    deals = data.get('list', [])
+                    if not deals:
+                        print("API'den oyun verisi alınamadı.")
+                        return
+                    async with aiofiles.open(JSON_FILE, 'w') as f:
+                        await f.write(json.dumps(deals))
+                    print(f"{len(deals)} indirimli oyun JSON dosyasına kaydedildi.")
+        except aiohttp.ClientError as e:
             print(f"API isteğinde hata oluştu: {e}")
 
     async def load_deals_from_file(self):
@@ -98,8 +102,8 @@ class Oyunbildirim(commands.Cog):
             return
         
         # Get the list of channels to notify
-        self.c.execute('SELECT guild_id, channel_id FROM GameNotifyChannels')
-        channels = self.c.fetchall()
+        await self.c.execute('SELECT guild_id, channel_id FROM GameNotifyChannels')
+        channels = await self.c.fetchall()
 
         for guild_id, channel_id in channels:
             # Iterate over deals until we find one that hasn't been posted in this guild
@@ -121,7 +125,7 @@ class Oyunbildirim(commands.Cog):
                 if discount < 50:
                     continue
 
-                if not self.check_if_deal_exists_for_guild(title, guild_id):
+                if not await self.check_if_deal_exists_for_guild(title, guild_id):
                     now = datetime.now()
                     await self.notify_channel(guild_id, channel_id, title, new_price, old_price, discount, store, url, now)
                     break  # Move to the next guild after posting a deal
@@ -130,21 +134,21 @@ class Oyunbildirim(commands.Cog):
         async with aiofiles.open(JSON_FILE, 'w') as f:
             await f.write(json.dumps(deals))
 
-    def check_if_deal_exists_for_guild(self, title, guild_id):
-        self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ? AND guild_id = ?", (title, guild_id))
-        result = self.c.fetchone()
+    async def check_if_deal_exists_for_guild(self, title, guild_id):
+        await self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ? AND guild_id = ?", (title, guild_id))
+        result = await self.c.fetchone()
         print(f"Check if deal exists: {title} for guild {guild_id}, result: {result}")
         return result is not None
 
-    def save_deal(self, title, guild_id, channel_id, new_price, old_price, discount, store, url, now):
+    async def save_deal(self, title, guild_id, channel_id, new_price, old_price, discount, store, url, now):
         try:
-            self.c.execute('''
+            await self.c.execute('''
                 INSERT INTO PostedDeals (title, guild_id, channel_id, new_price, old_price, discount, store, url, last_shared)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (title, guild_id, channel_id, new_price, old_price, discount, store, url, now))
-            self.conn.commit()
+            await self.conn.commit()
             print(f"Saved deal {title} to DB for guild {guild_id}, channel {channel_id}")
-        except sqlite3.IntegrityError:
+        except aiosqlite.IntegrityError:
             print(f"Deal {title} already exists in DB for guild {guild_id}, channel {channel_id}")
 
     async def notify_channel(self, guild_id, channel_id, title, new_price, old_price, discount, store, url, now):
@@ -159,12 +163,12 @@ class Oyunbildirim(commands.Cog):
                 f"[Oyun Linki]({url})"
             )
             await channel.send(message)
-            self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
+            await self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
 
     @tasks.loop(hours=360)  # 15 günde bir
     async def clear_old_deals(self):
-        self.c.execute("DELETE FROM PostedDeals WHERE last_shared < DATETIME('now', '-15 days')")
-        self.conn.commit()
+        await self.c.execute("DELETE FROM PostedDeals WHERE last_shared < DATETIME('now', '-15 days')")
+        await self.conn.commit()
         print("Eski indirimler silindi.")
 
     @clear_old_deals.before_loop
