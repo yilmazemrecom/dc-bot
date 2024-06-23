@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import json
 import os
 import aiofiles
+import asyncio
 
 API_URL = 'https://api.isthereanydeal.com/deals/v2'
 JSON_FILE = 'json/indirim.json'
@@ -16,8 +17,6 @@ class Oyunbildirim(commands.Cog):
         self.bot = bot
         self.check_deals.start()
         self.clear_old_deals.start()
-
-        # SQLite veritabanı bağlantısı
         self.bot.loop.create_task(self.init_db())
 
     async def init_db(self):
@@ -106,29 +105,31 @@ class Oyunbildirim(commands.Cog):
         channels = await self.c.fetchall()
 
         for guild_id, channel_id in channels:
-            # Iterate over deals until we find one that hasn't been posted in this guild
-            for deal in deals:
-                title = deal.get('title')
-                if not title:
-                    print("Title yok, atlanıyor.")
-                    continue
+            try:
+                for deal in deals:
+                    title = deal.get('title')
+                    if not title:
+                        print(f"Title yok, atlanıyor. Channel ID: {channel_id}")
+                        continue
 
-                new_price = deal.get('deal', {}).get('price', {}).get('amount')
-                old_price = deal.get('deal', {}).get('regular', {}).get('amount')
-                discount = deal.get('deal', {}).get('cut', {})
-                store = deal.get('deal', {}).get('shop', {}).get('name')
-                url = deal.get('deal', {}).get('url')
+                    new_price = deal.get('deal', {}).get('price', {}).get('amount')
+                    old_price = deal.get('deal', {}).get('regular', {}).get('amount')
+                    discount = deal.get('deal', {}).get('cut', {})
+                    store = deal.get('deal', {}).get('shop', {}).get('name')
+                    url = deal.get('deal', {}).get('url')
 
-                if new_price is None or old_price is None or discount is None or store is None or url is None:
-                    continue
+                    if new_price is None or old_price is None or discount is None or store is None or url is None:
+                        continue
 
-                if discount < 50:
-                    continue
+                    if discount < 50:
+                        continue
 
-                if not await self.check_if_deal_exists_for_guild(title, guild_id):
-                    now = datetime.now()
-                    await self.notify_channel(guild_id, channel_id, title, new_price, old_price, discount, store, url, now)
-                    break  # Move to the next guild after posting a deal
+                    if not await self.check_if_deal_exists_for_guild(title, guild_id):
+                        now = datetime.now()
+                        await self.notify_channel(guild_id, channel_id, title, new_price, old_price, discount, store, url, now)
+                        break  # Move to the next guild after posting a deal
+            except Exception as e:
+                print(f"Error processing guild_id: {guild_id}, channel_id: {channel_id}, error: {e}")
         
         # Update JSON file with remaining deals
         async with aiofiles.open(JSON_FILE, 'w') as f:
@@ -152,18 +153,23 @@ class Oyunbildirim(commands.Cog):
             print(f"Deal {title} already exists in DB for guild {guild_id}, channel {channel_id}")
 
     async def notify_channel(self, guild_id, channel_id, title, new_price, old_price, discount, store, url, now):
-        channel = self.bot.get_channel(int(channel_id))
-        if channel:
-            message = (
-                f"Yeni Oyun İndirimi: **{title}**!\n"
-                f"Yeni Fiyat: {new_price} TL\n"
-                f"Eski Fiyat: {old_price} TL\n"
-                f"İndirim: %{discount}\n"
-                f"Mağaza: {store}\n"
-                f"[Oyun Linki]({url})"
-            )
-            await channel.send(message)
-            await self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
+        try:
+            channel = self.bot.get_channel(int(channel_id))
+            if channel:
+                message = (
+                    f"Yeni Oyun İndirimi: **{title}**!\n"
+                    f"Yeni Fiyat: {new_price} TL\n"
+                    f"Eski Fiyat: {old_price} TL\n"
+                    f"İndirim: %{discount}\n"
+                    f"Mağaza: {store}\n"
+                    f"[Oyun Linki]({url})"
+                )
+                await channel.send(message)
+                await self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
+            else:
+                print(f"Kanal bulunamadı: {channel_id} for guild: {guild_id}")
+        except Exception as e:
+            print(f"Error notifying channel: {channel_id} for guild: {guild_id}, error: {e}")
 
     @tasks.loop(hours=360)  # 15 günde bir
     async def clear_old_deals(self):
