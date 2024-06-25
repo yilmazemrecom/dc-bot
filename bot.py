@@ -56,48 +56,57 @@ async def before_update_server_info():
 @bot.command(name='komutlar')
 async def list_commands(ctx):
     try:
-        komutlar = [
-            "!komutlar: Tüm komutları listeler",
-            "",
-            "**Genel Komutlar**",
-            "- `!oyunbildirimac <#kanal>`: Belirtilan kanal için oyun indirim bildirimlerini açar",
-            "- `!oyunbildirimkapat`: Oyun bildirimlerini kapatır",
-            "- `!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular",
-            "- `!bakiye`: Bakiyeninizi gösterir",
-            "- `!btransfer <kişi etiket> <tutar>`: Belirttiğiniz tutar kadar sikke transferi yapar.",
-            "",
-            "**Müzik Komutları**",
-            "- `!cal <şarkı adı veya URL>`: Belirtilen şarkıyı çalar",
-            "- `!dur`: Müziği durdurur",
-            "- `!devam`: Müziği devam ettirir",
-            "- `!siradakiler`: Sıradaki şarkıları gösterir",
-            "- `!gec`: Sıradaki şarkıya geçer",
-            "- `!cik`: Ses kanalından ayrılır",
-            "",
-            "**Eğlence Komutları:**",
-            "Para kazanmak için quiz veya bilmece bilebilirsiniz. Varsayılan bakiyeniz 100 sikke olarak eklenir.",
-            "- `!bilmece`: Rastgele bir bilmece sorar",
-            "- `!zar <bahis> <tahmin>`: Zar oyunu",
-            "- `!yazitura <bahis> <yazı/tura>`: Yazı tura oyunu",
-            "- `!quiz`: Rastgele bir quiz sorusu sorar",
-            "- `!asmaca`: Adam asmaca oyunu",
-            "- `!rulet <bahis>`: Rulet oyunu. Ya hep ya hiç",
-            "",
-            "**Takım Oyunu Komutları:**",
-            "- `!takimolustur <takım adı> <yatırım miktarı>`: Yeni bir takım oluşturur",
-            "- `!takimyatirim <yatırım miktarı>`: Takımınıza yatırım yapar",
-            "- `!macyap <bahis>`: Takımınızla maç yapar",
-            "- `!takimim`: Takımınızı gösterir",
-            "- `!lig`: Lig durumunu gösterir",
-            "",
-            "**Diğer komutlar, takım oyunu kuralları ve yardım için**",
+        embed = discord.Embed(title="Komut Listesi", color=discord.Color.blue())
+        
+        # Genel Komutlar
+        embed.add_field(name="Genel Komutlar", value=(
+            "- `!komutlar`: Tüm komutları listeler\n"
+            "- `!oyunbildirimac <#kanal>`: Belirtilen kanal için oyun indirim bildirimlerini açar\n"
+            "- `!oyunbildirimkapat`: Oyun bildirimlerini kapatır\n"
+            "- `!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular\n"
+            "- `!bakiye`: Bakiyenizi gösterir\n"
+            "- `!btransfer <kişi etiket> <tutar>`: Belirttiğiniz tutar kadar sikke transferi yapar."
+        ), inline=False)
+        
+        # Müzik Komutları
+        embed.add_field(name="Müzik Komutları", value=(
+            "- `!cal <şarkı adı veya URL>`: Belirtilen şarkıyı çalar\n"
+            "- `!dur`: Müziği durdurur\n"
+            "- `!devam`: Müziği devam ettirir\n"
+            "- `!siradakiler`: Sıradaki şarkıları gösterir\n"
+            "- `!gec`: Sıradaki şarkıya geçer\n"
+            "- `!cik`: Ses kanalından ayrılır"
+        ), inline=False)
+        
+        # Eğlence Komutları
+        embed.add_field(name="Eğlence Komutları", value=(
+            "Para kazanmak için quiz veya bilmece bilebilirsiniz. Varsayılan bakiyeniz 100 sikke olarak eklenir.\n"
+            "- `!bilmece`: Rastgele bir bilmece sorar\n"
+            "- `!zar <bahis> <tahmin>`: Zar oyunu\n"
+            "- `!yazitura <bahis> <yazı/tura>`: Yazı tura oyunu\n"
+            "- `!quiz`: Rastgele bir quiz sorusu sorar\n"
+            "- `!asmaca`: Adam asmaca oyunu\n"
+            "- `!rulet <bahis>`: Rulet oyunu. Ya hep ya hiç"
+        ), inline=False)
+        
+        # Takım Oyunu Komutları
+        embed.add_field(name="Takım Oyunu Komutları", value=(
+            "- `!takimolustur <takım adı> <yatırım miktarı>`: Yeni bir takım oluşturur\n"
+            "- `!takimyatirim <yatırım miktarı>`: Takımınıza yatırım yapar\n"
+            "- `!macyap <bahis>`: Takımınızla maç yapar\n"
+            "- `!takimim`: Takımınızı gösterir\n"
+            "- `!lig`: Lig durumunu gösterir"
+        ), inline=False)
+        
+        # Yardım ve Diğer Komutlar
+        embed.add_field(name="Diğer komutlar, takım oyunu kuralları ve yardım için", value=(
             "https://emreylmzcom.github.io/cayci/"
-        ]
-        await ctx.send('\n'.join(komutlar))
+        ), inline=False)
+        
+        await ctx.send(embed=embed)
     except Exception as e:
         print(f"Hata: {e}")
         await ctx.send("Komutlar listesi alınırken bir hata oluştu.")
-
 
 async def load_extensions():
     for extension in ['responses', 'games', 'economy', 'takimoyunu','music', 'oyunbildirim' ]:
