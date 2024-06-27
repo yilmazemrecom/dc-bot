@@ -55,7 +55,7 @@ class Oyunbildirim(commands.Cog):
         await self.c.execute('INSERT OR REPLACE INTO GameNotifyChannels (guild_id, channel_id) VALUES (?, ?)',
                        (ctx.guild.id, channel.id))
         await self.conn.commit()
-        await ctx.send(f"İndirimdeki oyunlar, saatte bir {channel.mention} kanalında paylaşılacak.")
+        await ctx.send(f"İndirimdeki oyunlar, saatte bir {channel.mention} kanalında paylaşılacak. (İndirimlerden dolayı 10 dk olarak güncellendi)")
     
     @commands.command(name='oyunbildirimkapat')
     async def oyunbildirimkapat(self, ctx):
@@ -93,7 +93,7 @@ class Oyunbildirim(commands.Cog):
         async with aiofiles.open(JSON_FILE, 'r') as f:
             return json.loads(await f.read())
 
-    @tasks.loop(minutes=60.0)
+    @tasks.loop(minutes=10.0)
     async def check_deals(self):
         deals = await self.load_deals_from_file()
         if not deals:

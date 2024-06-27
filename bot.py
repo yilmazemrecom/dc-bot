@@ -109,7 +109,7 @@ async def list_commands(ctx):
         await ctx.send("Komutlar listesi alınırken bir hata oluştu.")
 
 async def load_extensions():
-    for extension in ['responses', 'games', 'economy', 'takimoyunu','music', 'oyunbildirim' ]:
+    for extension in ['responses', 'games', 'economy', 'takimoyunu','music', 'oyunbildirim', 'film' ]:
         await bot.load_extension(f'assets.{extension}')
 
 async def main():
