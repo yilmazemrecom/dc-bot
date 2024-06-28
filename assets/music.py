@@ -59,16 +59,25 @@ class Music(commands.Cog):
 
         @classmethod
         async def create_source(cls, entry, *, loop=None):
-            loop = loop or asyncio.get_event_loop()
-            try:
-                data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(entry['url'], download=False))
-                if 'url' in data:
-                    return cls(discord.FFmpegPCMAudio(data['url'], **Music.ffmpeg_options), data=data)
-                else:
-                    return None
-            except Exception as e:
-                print(f"Error creating source: {e}")
-                return None
+                loop = loop or asyncio.get_event_loop()
+                try:
+                    data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(entry['url'], download=False))
+                    if 'url' in data:
+                        return cls(discord.FFmpegPCMAudio(data['url'], **Music.ffmpeg_options), data=data)
+                    else:
+                        raise YTDLError(f"Unable to extract info for URL: {entry['url']}")
+                except YTDLError as e:
+                    if "MESAM / MSG CS" in e.message or "telif hakkı" in e.message:
+                        print(f"Skipping blocked video: {entry['url']}")
+                        if self.queue:
+                            self.queue.pop(0)  # Atla ve sıradaki videoya geç
+                        else:
+                            self.is_playing = False
+                            await ctx.send("Sırada şarkı yok.")
+                            await ctx.voice_client.disconnect()
+                        return None  # Skip the video and move on to the next one
+                    else:
+                        raise 
 
     async def play_next(self, ctx):
         if self.queue:
@@ -138,9 +147,12 @@ class Music(commands.Cog):
                 await loading_message.edit(embed=embed)
             else:
                 await ctx.send("Playlistte geçerli şarkı bulunamadı.")
-        except Exception as e:
-            await ctx.send(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
-
+        except YTDLError as e:
+            if "MESAM / MSG CS" in e.message or "telif hakkı" in e.message:
+                await ctx.send(f"Video telif hakkı nedeniyle engellenmiş: {entry['url']}")
+            else:
+                await ctx.send(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
+            return
     def get_control_buttons(self, ctx):
         async def stop_callback(interaction):
             await interaction.response.defer()
