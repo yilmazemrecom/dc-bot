@@ -15,6 +15,7 @@ class Music(commands.Cog):
         self.caller = None
         self.current_message = None
 
+
     youtube_dl.utils.bug_reports_message = lambda: ''
 
     ytdl_format_options = {
@@ -59,25 +60,26 @@ class Music(commands.Cog):
 
         @classmethod
         async def create_source(cls, entry, *, loop=None):
-                loop = loop or asyncio.get_event_loop()
-                try:
-                    data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(entry['url'], download=False))
-                    if 'url' in data:
-                        return cls(discord.FFmpegPCMAudio(data['url'], **Music.ffmpeg_options), data=data)
+            loop = loop or asyncio.get_event_loop()
+            try:
+                data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(entry['url'], download=False))
+                if 'url' in data:
+                    return cls(discord.FFmpegPCMAudio(data['url'], **Music.ffmpeg_options), data=data)
+                else:
+                    raise YTDLError(f"Unable to extract info for URL: {entry['url']}")
+            except youtube_dl.utils.DownloadError as e:
+                print(f"Hata yakalandı: {e}")  # Hatanın nedenini yazdır
+                if "MESAM / MSG CS" in str(e) or "unavailable" in str(e):
+                    print(f"Skipping blocked video: {entry['url']}")
+                    if self.queue:
+                        self.queue.pop(0)  # Atla ve sıradaki videoya geç
                     else:
-                        raise YTDLError(f"Unable to extract info for URL: {entry['url']}")
-                except YTDLError as e:
-                    if "MESAM / MSG CS" in e.message or "telif hakkı" in e.message:
-                        print(f"Skipping blocked video: {entry['url']}")
-                        if self.queue:
-                            self.queue.pop(0)  # Atla ve sıradaki videoya geç
-                        else:
-                            self.is_playing = False
-                            await ctx.send("Sırada şarkı yok.")
-                            await ctx.voice_client.disconnect()
-                        return None  # Skip the video and move on to the next one
-                    else:
-                        raise 
+                        self.is_playing = False
+                        await ctx.send("Sırada şarkı yok.")
+                        await ctx.voice_client.disconnect()
+                    return None  
+                else:
+                    raise 
 
     async def play_next(self, ctx):
         if self.queue:
@@ -93,6 +95,8 @@ class Music(commands.Cog):
                         await self.current_message.edit(embed=embed, view=view)
                     else:
                         self.current_message = await ctx.send(embed=embed, view=view)
+                    
+
                 else:
                     await self.play_next(ctx)  # Skip to the next song if source is None
         else:
@@ -249,11 +253,11 @@ class Music(commands.Cog):
 
 
 
-        exit_button = Button(label="Çık", style=discord.ButtonStyle.danger)
-        stop_button = Button(label="Durdur", style=discord.ButtonStyle.danger)
-        resume_button = Button(label="Devam", style=discord.ButtonStyle.success)
-        skip_button = Button(label="Geç", style=discord.ButtonStyle.primary)
-        siradakiler_button = Button(label="Sıradakiler", style=discord.ButtonStyle.primary)
+        exit_button = Button(label="⏹️", style=discord.ButtonStyle.primary)
+        stop_button = Button(label="⏸️", style=discord.ButtonStyle.primary)
+        resume_button = Button(label="▶️", style=discord.ButtonStyle.primary)
+        skip_button = Button(label="⏭️", style=discord.ButtonStyle.primary)
+        siradakiler_button = Button(label="📜", style=discord.ButtonStyle.primary)
 
         exit_button.callback = exit_callback
         stop_button.callback = stop_callback
@@ -307,8 +311,9 @@ class Music(commands.Cog):
                         embed.description = pages[current_page]
                         await interaction.response.edit_message(embed=embed, view=view)
 
-                next_button = Button(label="İleri", style=discord.ButtonStyle.primary)
-                previous_button = Button(label="Geri", style=discord.ButtonStyle.primary)
+                next_button = Button(label="➡️", style=discord.ButtonStyle.primary)
+                previous_button = Button(label="⬅️", style=discord.ButtonStyle.primary)
+
 
                 next_button.callback = next_callback
                 previous_button.callback = previous_callback
