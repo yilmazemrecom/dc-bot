@@ -15,15 +15,14 @@ class Music(commands.Cog):
         self.caller = None
         self.current_message = None
 
-
     youtube_dl.utils.bug_reports_message = lambda: ''
 
     ytdl_format_options = {
         'format': 'bestaudio/best',
         'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
         'restrictfilenames': True,
-        'nocheckcertificate': True,
-        'ignoreerrors': True,  # ignoreerrors set to True to continue processing
+        'nocertificate': True,
+        'ignoreerrors': True,
         'logtostderr': False,
         'quiet': True,
         'no_warnings': True,
@@ -51,6 +50,9 @@ class Music(commands.Cog):
             loop = loop or asyncio.get_event_loop()
             data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(url, download=not stream))
 
+            if not data:
+                return None
+
             if 'entries' in data:
                 entries = data['entries']
                 entries = [entry for entry in entries if entry and entry.get('url')]
@@ -63,20 +65,16 @@ class Music(commands.Cog):
             loop = loop or asyncio.get_event_loop()
             try:
                 data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(entry['url'], download=False))
+                if not data:
+                    return None
                 if 'url' in data:
                     return cls(discord.FFmpegPCMAudio(data['url'], **Music.ffmpeg_options), data=data)
                 else:
-                    raise YTDLError(f"Unable to extract info for URL: {entry['url']}")
+                    raise Exception(f"Unable to extract info for URL: {entry['url']}")
             except youtube_dl.utils.DownloadError as e:
                 print(f"Hata yakalandı: {e}")  # Hatanın nedenini yazdır
                 if "MESAM / MSG CS" in str(e) or "unavailable" in str(e):
                     print(f"Skipping blocked video: {entry['url']}")
-                    if self.queue:
-                        self.queue.pop(0)  # Atla ve sıradaki videoya geç
-                    else:
-                        self.is_playing = False
-                        await ctx.send("Sırada şarkı yok.")
-                        await ctx.voice_client.disconnect()
                     return None  
                 else:
                     raise 
@@ -95,8 +93,6 @@ class Music(commands.Cog):
                         await self.current_message.edit(embed=embed, view=view)
                     else:
                         self.current_message = await ctx.send(embed=embed, view=view)
-                    
-
                 else:
                     await self.play_next(ctx)  # Skip to the next song if source is None
         else:
@@ -120,7 +116,6 @@ class Music(commands.Cog):
                     break
             else:
                 self.is_playing = False
-
 
     @commands.command()
     async def cal(self, ctx, *, url_or_query):
@@ -151,12 +146,10 @@ class Music(commands.Cog):
                 await loading_message.edit(embed=embed)
             else:
                 await ctx.send("Playlistte geçerli şarkı bulunamadı.")
-        except YTDLError as e:
-            if "MESAM / MSG CS" in e.message or "telif hakkı" in e.message:
-                await ctx.send(f"Video telif hakkı nedeniyle engellenmiş: {entry['url']}")
-            else:
-                await ctx.send(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
+        except Exception as e:
+            await ctx.send(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
             return
+
     def get_control_buttons(self, ctx):
         async def stop_callback(interaction):
             await interaction.response.defer()
@@ -251,8 +244,6 @@ class Music(commands.Cog):
                 message = await ctx.send("Bot bir ses kanalında değil.")
                 await message.delete(delay=30)  # 30 saniye sonra mesajı sil
 
-
-
         exit_button = Button(label="⏹️", style=discord.ButtonStyle.primary)
         stop_button = Button(label="⏸️", style=discord.ButtonStyle.primary)
         resume_button = Button(label="▶️", style=discord.ButtonStyle.primary)
@@ -273,7 +264,6 @@ class Music(commands.Cog):
         view.add_item(siradakiler_button)
 
         return view
-
 
     @commands.command()
     async def siradakiler(self, ctx):
@@ -329,6 +319,7 @@ class Music(commands.Cog):
         else:
             message = await ctx.send("Bot bir ses kanalında değil.")
             await message.delete(delay=30)  # 30 saniye sonra mesajı sil
+
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
