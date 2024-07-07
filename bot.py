@@ -9,7 +9,7 @@ PREFIX = '!'
 
 intents = discord.Intents.default()
 intents.messages = True  # Mesaj içeriği izni
-intents.presences = True
+
 intents.message_content = True
 
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
@@ -17,7 +17,7 @@ bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 @bot.event
 async def on_ready():
     await init_db()
-    await bot.change_presence(activity=discord.Game(name="Çay Yapıyor!"))
+
     update_server_info.start()
 
 @tasks.loop(hours=1)  # Her saat başı çalışır
