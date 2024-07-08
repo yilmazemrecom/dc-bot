@@ -105,8 +105,12 @@ class Music(commands.Cog):
                     await self.play_next(ctx)  # Skip to the next song if source is None
         else:
             state["is_playing"] = False
-            await ctx.send("Sırada şarkı yok.")
             await ctx.voice_client.disconnect()
+            await state["current_message"].delete()
+            state["current_message"] = None
+
+
+
 
     async def play_next_after_callback(self, ctx):
         await self.play_next(ctx)
@@ -155,6 +159,13 @@ class Music(commands.Cog):
                 await loading_message.edit(embed=embed)
             else:
                 await ctx.send("Playlistte geçerli şarkı bulunamadı.")
+                state["queue"].clear()
+                state["is_playing"] = False
+                await state["current_message"].delete()
+                state["current_message"] = None
+                await ctx.voice_client.disconnect()
+
+            
         except Exception as e:
             await ctx.send(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
             return
@@ -195,8 +206,11 @@ class Music(commands.Cog):
                 await ctx.voice_client.disconnect()
                 state["queue"].clear()
                 state["is_playing"] = False
-                embed = discord.Embed(title="Çaycı artık özgür!", color=discord.Color.red())
-                await state["current_message"].edit(embed=embed)
+                # ebmedi temizle
+                await state["current_message"].delete()
+                state["current_message"] = None
+
+
             else:
                 await ctx.send("Bot bir ses kanalında değil.")
 
