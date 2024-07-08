@@ -106,14 +106,13 @@ class Music(commands.Cog):
         else:
             state["is_playing"] = False
             await ctx.voice_client.disconnect()
-            await state["current_message"].delete()
-            state["current_message"] = None
-
-
-
+            if state["current_message"]:
+                await state["current_message"].delete()
+                state["current_message"] = None
 
     async def play_next_after_callback(self, ctx):
         await self.play_next(ctx)
+
 
     async def prepare_next_song(self, ctx):
         state = self.get_guild_state(ctx.guild.id)
@@ -191,11 +190,11 @@ class Music(commands.Cog):
         async def skip_callback(interaction):
             await interaction.response.defer()
             if ctx.voice_client.is_playing():
-                ctx.voice_client.stop()
+                ctx.voice_client.stop()  # This will trigger the after callback which calls play_next
                 embed = state["current_message"].embeds[0]
                 embed.title = "Sıradaki şarkıya geçildi."
                 await state["current_message"].edit(embed=embed)
-                await self.play_next(ctx)  # Directly call play_next
+
 
         async def exit_callback(interaction):
             await interaction.response.defer()
@@ -206,11 +205,10 @@ class Music(commands.Cog):
                 await ctx.voice_client.disconnect()
                 state["queue"].clear()
                 state["is_playing"] = False
-                # ebmedi temizle
                 await state["current_message"].delete()
                 state["current_message"] = None
-
-
+                embed = discord.Embed(title="Çaycı Artık Özgür!", description="Bot ses kanalından çıkartıldı.", color=discord.Color.red())
+                message = await ctx.send(embed=embed)
             else:
                 await ctx.send("Bot bir ses kanalında değil.")
 
