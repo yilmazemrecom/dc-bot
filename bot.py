@@ -63,6 +63,8 @@ async def list_commands(ctx):
             "- `!komutlar`: Tüm komutları listeler\n"
             "- `!oyunbildirimac <#kanal>`: Belirtilen kanal için oyun indirim bildirimlerini açar\n"
             "- `!oyunbildirimkapat`: Oyun bildirimlerini kapatır\n"
+            "- `!filmbildirimac <#kanal>`: Belirtilen kanal için film öneri bildirimlerini açar\n"
+            "- `!filmbildirimkapat`: Film bildirimlerini kapatır\n"
             "- `!siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular\n"
             "- `!bakiye`: Bakiyenizi gösterir\n"
             "- `!btransfer <kişi etiket> <tutar>`: Belirttiğiniz tutar kadar sikke transferi yapar."
@@ -70,12 +72,8 @@ async def list_commands(ctx):
         
         # Müzik Komutları
         embed.add_field(name="Müzik Komutları", value=(
-            "- `!cal <şarkı adı veya URL>`: Belirtilen şarkıyı çalar\n"
-            "- `!dur`: Müziği durdurur\n"
-            "- `!devam`: Müziği devam ettirir\n"
-            "- `!siradakiler`: Sıradaki şarkıları gösterir\n"
-            "- `!gec`: Sıradaki şarkıya geçer\n"
-            "- `!cik`: Ses kanalından ayrılır"
+            "- `!cal <şarkı adı veya Youtube URL>`: Belirtilen şarkıyı çalar\n"
+
         ), inline=False)
         
         # Eğlence Komutları
@@ -100,7 +98,8 @@ async def list_commands(ctx):
         
         # Yardım ve Diğer Komutlar
         embed.add_field(name="Diğer komutlar, takım oyunu kuralları ve yardım için", value=(
-            "https://emreylmzcom.github.io/cayci/"
+            "Website: https://emreylmzcom.github.io/cayci/"
+            "Gizlilik Politikası: https://emreylmzcom.github.io/cayci/gizlilik_politikasi.html"
         ), inline=False)
         
         await ctx.send(embed=embed)
