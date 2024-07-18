@@ -341,6 +341,23 @@ class Music(commands.Cog):
             message = await interaction.response.send_message("Bot bir ses kanalında değil.")
             await message.delete(delay=30)  # 30 saniye sonra mesajı sil
 
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if not member.bot:
+            return
+
+        state = self.get_guild_state(member.guild.id)
+        if before.channel is not None and after.channel is None:  # Bot was disconnected
+            state["queue"].clear()
+            state["is_playing"] = False
+            if state["current_message"]:
+                await state["current_message"].delete()
+                state["current_message"] = None
+            if member.guild.voice_client:
+                await member.guild.voice_client.disconnect()
+
+
 async def setup(bot):
     await bot.add_cog(Music(bot))
 
