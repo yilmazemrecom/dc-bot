@@ -1,14 +1,17 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import yt_dlp as youtube_dl
 import asyncio
 from asyncio import Lock
 from discord.ui import Button, View
+import datetime
 
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.guild_states = {}
+        self.check_voice_channel.start()
+
 
     def get_guild_state(self, guild_id):
         if guild_id not in self.guild_states:
@@ -51,6 +54,7 @@ class Music(commands.Cog):
             self.data = data
             self.title = data.get('title')
             self.url = data.get('url')
+            self.thumbnail = data.get('thumbnail')
 
         @classmethod
         async def from_url(cls, url, *, loop=None, stream=False):
@@ -97,6 +101,7 @@ class Music(commands.Cog):
                     view = self.get_control_buttons(interaction)
                     interaction.guild.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next_after_callback(interaction), self.bot.loop))
                     embed = discord.Embed(title="Şu anda Çalan Şarkı", description=state["current_player"]['title'], color=discord.Color.green())
+                    embed.set_thumbnail(url=source.thumbnail)
                     if state["current_message"]:
                         await state["current_message"].edit(embed=embed, view=view)
                     else:
@@ -146,6 +151,7 @@ class Music(commands.Cog):
         embed = discord.Embed(title="Şarkı Yükleniyor", description="Lütfen bekleyin...", color=discord.Color.blue())
         await interaction.response.send_message(embed=embed)
         loading_message = await interaction.original_response()
+        await loading_message.delete(delay=10)
 
         try:
             entries = await self.YTDLSource.from_url(sarki, loop=self.bot.loop, stream=True)
@@ -154,9 +160,9 @@ class Music(commands.Cog):
                     state["queue"].extend(entries)
                 if not state["is_playing"]:
                     await self.prepare_next_song(interaction)
-                embed.title = "Şarkılar Kuyruğa Eklendi"
-                embed.description = f'{len(entries)} şarkı kuyruğa eklendi.'
-                await loading_message.edit(embed=embed)
+                embed = discord.Embed(title="Şarkılar Kuyruğa Eklendi", description=f"{len(entries)} şarkı kuyruğa eklendi.", color=discord.Color.blue())
+                loadingmess= await loading_message.edit(embed=embed)
+                await loadingmess.delete(delay=10)
             else:
                 await interaction.followup.send("Playlistte geçerli şarkı bulunamadı.", ephemeral=True)
                 state["queue"].clear()
@@ -178,6 +184,12 @@ class Music(commands.Cog):
                 await interaction.followup.send("Şarkı durduruldu.", ephemeral=True)
                 view = self.get_control_buttons(interaction)
                 await state["current_message"].edit(view=view)
+            elif interaction.guild.voice_client.is_paused():
+                interaction.guild.voice_client.resume()
+                await interaction.followup.send("Şarkı devam ediyor.", ephemeral=True)
+                view = self.get_control_buttons(interaction)
+                await state["current_message"].edit(view=view)
+
 
         async def resume_callback(interaction):
             await interaction.response.defer()
@@ -265,22 +277,21 @@ class Music(commands.Cog):
                 message = await interaction.channel.send("Bot bir ses kanalında değil.")
                 await message.delete(delay=30)  # 30 saniye sonra mesajı sil
 
-        exit_button = Button(label="⏹️", style=discord.ButtonStyle.primary)
-        stop_button = Button(label="⏸️", style=discord.ButtonStyle.primary)
-        resume_button = Button(label="▶️", style=discord.ButtonStyle.primary)
-        skip_button = Button(label="⏭️", style=discord.ButtonStyle.primary)
-        siradakiler_button = Button(label="📜", style=discord.ButtonStyle.primary)
+        exit_button = Button(label="", emoji="⏹️", style=discord.ButtonStyle.primary)
+        stop_button = Button(label="", emoji="⏯️", style=discord.ButtonStyle.primary)
+        skip_button = Button(label="", emoji="⏭️", style=discord.ButtonStyle.primary)
+        siradakiler_button = Button(label="", emoji="📋", style=discord.ButtonStyle.primary)
 
         exit_button.callback = exit_callback
         stop_button.callback = stop_callback
-        resume_button.callback = resume_callback
+
         skip_button.callback = skip_callback
         siradakiler_button.callback = siradakiler_callback
 
         view = View()
         view.add_item(exit_button)
         view.add_item(stop_button)
-        view.add_item(resume_button)
+
         view.add_item(skip_button)
         view.add_item(siradakiler_button)
 
@@ -356,6 +367,31 @@ class Music(commands.Cog):
                 state["current_message"] = None
             if member.guild.voice_client:
                 await member.guild.voice_client.disconnect()
+
+    def get_voice_state(self, guild):
+        if guild.voice_client:
+            return guild.voice_client.channel
+        return None
+
+    @tasks.loop(minutes=1.0)
+    async def check_voice_channel(self):
+        for guild in self.bot.guilds:
+            voice_state = self.get_voice_state(guild)
+            if voice_state and len(voice_state.members) == 1:
+                await asyncio.sleep(600)  # 10 dakika bekle
+                if len(voice_state.members) == 1:  # Tekrar kontrol et
+                    await guild.voice_client.disconnect()
+                    state = self.get_guild_state(guild.id)
+                    state["queue"].clear()
+                    state["is_playing"] = False
+                    if state["current_message"]:
+                        await state["current_message"].delete()
+                        state["current_message"] = None
+
+    @check_voice_channel.before_loop
+    async def before_check_voice_channel(self):
+        await self.bot.wait_until_ready()
+
 
 
 async def setup(bot):

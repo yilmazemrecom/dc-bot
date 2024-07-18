@@ -159,14 +159,20 @@ class Oyunbildirim(commands.Cog):
     async def notify_channel(self, guild_id, channel_id, title, new_price, old_price, discount, store, url, now):
         try:
             channel = self.bot.get_channel(int(channel_id))
+
+            profit = old_price - new_price
+            title_length = len(title)
+            title_line = "━" * title_length
+
             if channel:
                 message = (
-                    f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                    f"**━━━━━━━━━━━━━{title_line}**\n"
                     f"## 🎮 **İndirim: {title}!**\n"
-                    f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
-                    f"💰 **Yeni Fiyat:** `🔻 {new_price} TL`\n"
-                    f"🔖 **Eski Fiyat:** `🔺 {old_price} TL`\n"
+                    f"**━━━━━━━━━━━━━{title_line}**\n"
+                    f"💰 **Yeni Fiyat:** `🔻 {new_price} ₺`\n"
+                    f"🔖 **Eski Fiyat:** `🔺 {old_price} ₺`\n"
                     f"📉 **İndirim:** `%{discount}`\n"
+                    f"💸 **Kâr** `{profit} ₺`\n"
                     f"🏪 **Mağaza:** `{store}`\n"
                     f"👉 [{title} Oyun Linki]({url})\n"
 
