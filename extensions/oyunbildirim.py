@@ -74,7 +74,7 @@ class Oyunbildirim(commands.Cog):
             'limit': 500,
             'sort': 'rank',
             'mature': 'false',
-            'filter': 'N4IgxgrgLiBcoFsCWA7OBWADAGhAghgB5wCMmmAvrgCYBOCcA2iQGzYskC6uADgDb4oAMwD29JiWwAmbAGZuIKAE8eAUwlyFytQDkRMWIwDs2ABwKU+gAq1VAeVrVVtOFFoRVuAM5RV+BFbOYHCIqBg4eESk5FR4qlD4AMK0SFBIwfB4YbCyEQTEsGSUuAjx+ACqXs4hWWiwACx5UYUx3r7+iSIQKAahdSSN5CXNKBB8fLFeABYiPF5MHNiscujsMvXmuLZ8flUAmn4umch1UphkwwVnUiwUFEA='
+            'filter': 'N4IgxgrgLiBcoFsCWA7OBWADAGhAghgB5wCMmmAvrgCYBOCcA2iQGzYskC6uADgDb4oAMwD29JiWwAmbAGZuIKAE8eAUwlyFytQDkRMWIwDs2ABwKU+gAq1VAeVrVVtOFFoRVuAM5RV+BFbOYHCIqBg4eESk5FR4qlD4AMK0SFBIwfB4YbAsEQTEsGSUuAjx+ACqXs4hWWiwWCVRhTHevv6JIhAoBqF1WOSNBSgQfHyxXgAWIjxeTBzYrHLo7DIALOa4tnx+VQCafi6ZyHVSmGSDcKdSLBQUQA=='
         }
         try:
             async with aiohttp.ClientSession() as session:
@@ -160,15 +160,21 @@ class Oyunbildirim(commands.Cog):
         try:
             channel = self.bot.get_channel(int(channel_id))
             if channel:
-                embed = discord.Embed(title="Yeni Oyun İndirimi!", description=f"**{title}**", color=discord.Color.green())
-                embed.add_field(name="Yeni Fiyat", value=f"{new_price} TL", inline=True)
-                embed.add_field(name="Eski Fiyat", value=f"{old_price} TL", inline=True)
-                embed.add_field(name="İndirim", value=f"%{discount}", inline=True)
-                embed.add_field(name="Mağaza", value=store, inline=True)
-                embed.add_field(name="Oyun Linki", value=f"[Tıkla]({url})", inline=False)
-                embed.set_footer(text=f"Çay var içersen, ben var seversen!")
-                await channel.send(embed=embed)
+                message = (
+                    f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                    f"## 🎮 **İndirim: {title}!**\n"
+                    f"**━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━**\n"
+                    f"💰 **Yeni Fiyat:** `🔻 {new_price} TL`\n"
+                    f"🔖 **Eski Fiyat:** `🔺 {old_price} TL`\n"
+                    f"📉 **İndirim:** `%{discount}`\n"
+                    f"🏪 **Mağaza:** `{store}`\n"
+                    f"👉 [{title} Oyun Linki]({url})\n"
+
+                )
+
+                await channel.send(message)
                 await self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
+
             else:
                 print(f"Kanal bulunamadı: {channel_id} for guild: {guild_id}")
         except Exception as e:
