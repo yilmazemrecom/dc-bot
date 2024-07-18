@@ -10,6 +10,7 @@ PREFIX = '!'
 intents = discord.Intents.default()
 intents.message_content = True
 
+
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
 
 @bot.event
@@ -18,10 +19,25 @@ async def on_ready():
     try:
         await init_db()
         update_server_info.start()
+        update_server_count.start()
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} command(s)")
     except Exception as e:
         print(f"Error syncing commands: {e}")
+
+@tasks.loop(minutes=10) 
+async def update_server_count():
+    async with aiosqlite.connect('database/economy.db') as db:
+        async with db.execute('SELECT SUM(sunucu_uye_sayisi) FROM sunucular') as cursor:
+            row = await cursor.fetchone()
+            total_users = row[0] if row[0] is not None else 0
+
+    status = f"{total_users} kullanıcı | /komutlar "
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening , name=status))
+
+
+
+
 
 @bot.tree.command(name="ping", description="Ping komutu")
 async def slash_ping(interaction: discord.Interaction):
