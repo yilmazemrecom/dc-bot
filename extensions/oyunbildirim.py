@@ -166,7 +166,7 @@ class Oyunbildirim(commands.Cog):
                 embed.add_field(name="İndirim", value=f"%{discount}", inline=True)
                 embed.add_field(name="Mağaza", value=store, inline=True)
                 embed.add_field(name="Oyun Linki", value=f"[Tıkla]({url})", inline=False)
-                embed.set_footer(text=f"Paylaşım Zamanı: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+                embed.set_footer(text=f"Çay var içersen, ben var seversen!")
                 await channel.send(embed=embed)
                 await self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
             else:
