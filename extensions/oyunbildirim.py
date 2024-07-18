@@ -3,11 +3,10 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 import aiosqlite
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import os
 import aiofiles
-import asyncio
 
 API_URL = 'https://api.isthereanydeal.com/deals/v2'
 JSON_FILE = 'json/indirim.json'
@@ -50,18 +49,23 @@ class Oyunbildirim(commands.Cog):
         self.clear_old_deals.cancel()
         self.conn.close()
 
-    @commands.command(name='oyunbildirimac')
-    async def oyunbilayar(self, ctx, channel: discord.TextChannel):
+    async def cog_check(self, ctx):
+        return ctx.author.guild_permissions.administrator
+
+    @discord.app_commands.command(name="oyunbildirimac", description="Belirtilen kanalda oyun bildirimlerini açar")
+    @commands.has_permissions(administrator=True)
+    async def oyunbildirimac(self, interaction: discord.Interaction, kanal: discord.TextChannel):
         await self.c.execute('INSERT OR REPLACE INTO GameNotifyChannels (guild_id, channel_id) VALUES (?, ?)',
-                       (ctx.guild.id, channel.id))
+                             (interaction.guild.id, kanal.id))
         await self.conn.commit()
-        await ctx.send(f"İndirimdeki oyunlar, saatte bir {channel.mention} kanalında paylaşılacak. (İndirimlerden dolayı 10 dk olarak güncellendi)")
-    
-    @commands.command(name='oyunbildirimkapat')
-    async def oyunbildirimkapat(self, ctx):
-        await self.c.execute('DELETE FROM GameNotifyChannels WHERE guild_id = ?', (ctx.guild.id,))
+        await interaction.response.send_message(f"İndirimdeki oyunlar, saatte bir {kanal.mention} kanalında paylaşılacak.", ephemeral=True)
+
+    @discord.app_commands.command(name="oyunbildirimkapat", description="Belirtilen kanalda oyun bildirimlerini kapatır")
+    @commands.has_permissions(administrator=True)
+    async def oyunbildirimkapat(self, interaction: discord.Interaction):
+        await self.c.execute('DELETE FROM GameNotifyChannels WHERE guild_id = ?', (interaction.guild.id,))
         await self.conn.commit()
-        await ctx.send(f"{ctx.channel.mention} kanalında oyun bildirimleri kapatıldı.")
+        await interaction.response.send_message(f"{interaction.channel.mention} kanalında oyun bildirimleri kapatıldı.", ephemeral=True)
 
     async def load_deals_from_api(self):
         params = {
@@ -138,7 +142,7 @@ class Oyunbildirim(commands.Cog):
     async def check_if_deal_exists_for_guild(self, title, guild_id):
         await self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ? AND guild_id = ?", (title, guild_id))
         result = await self.c.fetchone()
-        print(f"Check if deal exists: {title} for guild {guild_id}, result: {result}")
+        # print(f"Check if deal exists: {title} for guild {guild_id}, result: {result}")
         return result is not None
 
     async def save_deal(self, title, guild_id, channel_id, new_price, old_price, discount, store, url, now):
@@ -156,15 +160,14 @@ class Oyunbildirim(commands.Cog):
         try:
             channel = self.bot.get_channel(int(channel_id))
             if channel:
-                message = (
-                    f"Yeni Oyun İndirimi: **{title}**!\n"
-                    f"Yeni Fiyat: {new_price} TL\n"
-                    f"Eski Fiyat: {old_price} TL\n"
-                    f"İndirim: %{discount}\n"
-                    f"Mağaza: {store}\n"
-                    f"[Oyun Linki]({url})"
-                )
-                await channel.send(message)
+                embed = discord.Embed(title="Yeni Oyun İndirimi!", description=f"**{title}**", color=discord.Color.green())
+                embed.add_field(name="Yeni Fiyat", value=f"{new_price} TL", inline=True)
+                embed.add_field(name="Eski Fiyat", value=f"{old_price} TL", inline=True)
+                embed.add_field(name="İndirim", value=f"%{discount}", inline=True)
+                embed.add_field(name="Mağaza", value=store, inline=True)
+                embed.add_field(name="Oyun Linki", value=f"[Tıkla]({url})", inline=False)
+                embed.set_footer(text=f"Paylaşım Zamanı: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+                await channel.send(embed=embed)
                 await self.save_deal(title, guild_id, channel_id, new_price, old_price, discount, store, url, now)
             else:
                 print(f"Kanal bulunamadı: {channel_id} for guild: {guild_id}")

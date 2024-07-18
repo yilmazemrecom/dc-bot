@@ -27,7 +27,9 @@ async def init_db():
                 kaptan TEXT,
                 miktari INTEGER,
                 kazanilan_mac INTEGER,
-                kaybedilen_mac INTEGER
+                kaybedilen_mac INTEGER,
+                son_yatirim_zamani TEXT,
+                son_mac_zamani TEXT
             )
         ''')
         await db.commit()
@@ -75,7 +77,14 @@ async def load_quiz_questions():
         return []
 
 async def load_kelime_listesi():
-    async with aiofiles.open('json/kelimeler.json', mode='r', encoding='utf-8') as f:
-        data = await f.read()
-        kelimeler = json.loads(data)['kelimeler']
-    return kelimeler
+    try:
+        async with aiofiles.open('json/kelimeler.json', mode='r', encoding='utf-8') as f:
+            data = await f.read()
+            kelimeler = json.loads(data)['kelimeler']
+        return kelimeler
+    except FileNotFoundError:
+        print("kelimeler.json bulunamadı!")
+        return []
+    except json.JSONDecodeError:
+        print("kelimeler.json dosyası düzgün yüklenemedi!")
+        return []

@@ -29,18 +29,20 @@ class FilmBildirim(commands.Cog):
         self.daily_movie_recommendation.cancel()
         self.conn.close()
 
-    @commands.command(name='filmbildirimac')
-    async def filmbildirimac(self, ctx, channel: discord.TextChannel):
+    @discord.app_commands.command(name="filmbildirimac", description="Belirtilen kanalda film bildirimlerini açar")
+    async def slash_filmbildirimac(self, interaction: discord.Interaction, kanal: discord.TextChannel):
         await self.c.execute('INSERT OR REPLACE INTO FilmNotifyChannels (guild_id, channel_id) VALUES (?, ?)',
-                             (ctx.guild.id, channel.id))
+                             (interaction.guild.id, kanal.id))
         await self.conn.commit()
-        await ctx.send(f"Film önerileri, günde bir defa {channel.mention} kanalında paylaşılacak.")
+        await interaction.response.send_message(f"Film önerileri, günde bir defa {kanal.mention} kanalında paylaşılacak.", ephemeral=True)
 
-    @commands.command(name='filmbildirimkapat')
-    async def filmbildirimkapat(self, ctx):
-        await self.c.execute('DELETE FROM FilmNotifyChannels WHERE guild_id = ?', (ctx.guild.id,))
+    @discord.app_commands.command(name="filmbildirimkapat", description="Belirtilen kanalda film bildirimlerini kapatır")
+    async def slash_filmbildirimkapat(self, interaction: discord.Interaction):
+        await self.c.execute('DELETE FROM FilmNotifyChannels WHERE guild_id = ?', (interaction.guild.id,))
         await self.conn.commit()
-        await ctx.send(f"{ctx.channel.mention} kanalında film bildirimleri kapatıldı.")
+        await interaction.response.send_message(f"{interaction.channel.mention} kanalında film bildirimleri kapatıldı.", ephemeral=True)
+
+
 
     async def fetch_movie_details(self, imdb_id):
         params = {
@@ -79,7 +81,7 @@ class FilmBildirim(commands.Cog):
                         details = await self.fetch_movie_details(movie['imdbID'])
                         if details:
                             print(f"Film Detayları: {details}")  # Film detaylarını yazdır
-                        if details and 'imdbRating' in details and float(details['imdbRating']) >= 7.0 and float(details['Year'])>=2010:
+                        if details and 'imdbRating' in details and float(details['imdbRating']) >= 8.0 and float(details['Year'])>=2010:
                             return details
                         
                     

@@ -86,36 +86,36 @@ class Music(commands.Cog):
                 else:
                     raise 
 
-    async def play_next(self, ctx):
-        state = self.get_guild_state(ctx.guild.id)
+    async def play_next(self, interaction):
+        state = self.get_guild_state(interaction.guild.id)
         if state["queue"]:
             state["current_player"] = state["queue"].pop(0)
             state["is_playing"] = True
-            async with ctx.typing():
+            async with interaction.channel.typing():
                 source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
                 if source:
-                    view = self.get_control_buttons(ctx)
-                    ctx.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next_after_callback(ctx), self.bot.loop))
+                    view = self.get_control_buttons(interaction)
+                    interaction.guild.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next_after_callback(interaction), self.bot.loop))
                     embed = discord.Embed(title="Şu anda Çalan Şarkı", description=state["current_player"]['title'], color=discord.Color.green())
                     if state["current_message"]:
                         await state["current_message"].edit(embed=embed, view=view)
                     else:
-                        state["current_message"] = await ctx.send(embed=embed, view=view)
+                        state["current_message"] = await interaction.channel.send(embed=embed, view=view)
                 else:
-                    await self.play_next(ctx)  # Skip to the next song if source is None
+                    await self.play_next(interaction)  # Skip to the next song if source is None
         else:
             state["is_playing"] = False
-            await ctx.voice_client.disconnect()
+            await interaction.guild.voice_client.disconnect()
             if state["current_message"]:
                 await state["current_message"].delete()
                 state["current_message"] = None
 
-    async def play_next_after_callback(self, ctx):
-        await self.play_next(ctx)
+    async def play_next_after_callback(self, interaction):
+        await self.play_next(interaction)
 
 
-    async def prepare_next_song(self, ctx):
-        state = self.get_guild_state(ctx.guild.id)
+    async def prepare_next_song(self, interaction):
+        state = self.get_guild_state(interaction.guild.id)
         async with state["queue_lock"]:
             while state["queue"]:
                 next_song = state["queue"].pop(0)
@@ -123,98 +123,97 @@ class Music(commands.Cog):
                 if source:
                     state["queue"].insert(0, next_song)  # Re-add the valid song to the queue
                     if not state["is_playing"]:
-                        await self.play_next(ctx)
+                        await self.play_next(interaction)
                     break
             else:
                 state["is_playing"] = False
 
-    @commands.command()
-    async def cal(self, ctx, *, url_or_query):
-        state = self.get_guild_state(ctx.guild.id)
+    @discord.app_commands.command(name="cal", description="Şarkı çalar")
+    async def slash_cal(self, interaction: discord.Interaction, sarki: str):
+        state = self.get_guild_state(interaction.guild.id)
         try:
-            channel = ctx.author.voice.channel
-            if ctx.voice_client is None:
+            channel = interaction.user.voice.channel
+            if interaction.guild.voice_client is None:
                 await channel.connect()
-                state["caller"] = ctx.author
-            elif ctx.voice_client.channel != channel:
-                await ctx.send(f"Şu anda başka bir kanalda bulunuyorum ({ctx.voice_client.channel.name}). Müsait olunca tekrar çağırın.")
+                state["caller"] = interaction.user
+            elif interaction.guild.voice_client.channel != channel:
+                await interaction.response.send_message(f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", ephemeral=True)
                 return
         except AttributeError:
-            await ctx.send("Bir ses kanalında değilsiniz.")
+            await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
             return
 
         embed = discord.Embed(title="Şarkı Yükleniyor", description="Lütfen bekleyin...", color=discord.Color.blue())
-        loading_message = await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed)
+        loading_message = await interaction.original_response()
 
         try:
-            entries = await self.YTDLSource.from_url(url_or_query, loop=self.bot.loop, stream=True)
+            entries = await self.YTDLSource.from_url(sarki, loop=self.bot.loop, stream=True)
             if entries:
                 async with state["queue_lock"]:
                     state["queue"].extend(entries)
                 if not state["is_playing"]:
-                    await self.prepare_next_song(ctx)
+                    await self.prepare_next_song(interaction)
                 embed.title = "Şarkılar Kuyruğa Eklendi"
                 embed.description = f'{len(entries)} şarkı kuyruğa eklendi.'
                 await loading_message.edit(embed=embed)
             else:
-                await ctx.send("Playlistte geçerli şarkı bulunamadı.")
+                await interaction.followup.send("Playlistte geçerli şarkı bulunamadı.", ephemeral=True)
                 state["queue"].clear()
                 state["is_playing"] = False
                 await state["current_message"].delete()
                 state["current_message"] = None
-                await ctx.voice_client.disconnect()
+                await interaction.guild.voice_client.disconnect()
 
-            
         except Exception as e:
-            await ctx.send(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
+            await interaction.followup.send(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}", ephemeral=True)
             return
 
-    def get_control_buttons(self, ctx):
-        state = self.get_guild_state(ctx.guild.id)
+    def get_control_buttons(self, interaction):
+        state = self.get_guild_state(interaction.guild.id)
         async def stop_callback(interaction):
             await interaction.response.defer()
-            if ctx.voice_client.is_playing():
-                ctx.voice_client.pause()
+            if interaction.guild.voice_client.is_playing():
+                interaction.guild.voice_client.pause()
                 await interaction.followup.send("Şarkı durduruldu.", ephemeral=True)
-                view = self.get_control_buttons(ctx)
+                view = self.get_control_buttons(interaction)
                 await state["current_message"].edit(view=view)
 
         async def resume_callback(interaction):
             await interaction.response.defer()
-            if ctx.voice_client.is_paused():
-                ctx.voice_client.resume()
+            if interaction.guild.voice_client.is_paused():
+                interaction.guild.voice_client.resume()
                 await interaction.followup.send("Şarkı devam ediyor.", ephemeral=True)
-                view = self.get_control_buttons(ctx)
+                view = self.get_control_buttons(interaction)
                 await state["current_message"].edit(view=view)
 
         async def skip_callback(interaction):
             await interaction.response.defer()
-            if ctx.voice_client.is_playing():
-                ctx.voice_client.stop()  # This will trigger the after callback which calls play_next
+            if interaction.guild.voice_client.is_playing():
+                interaction.guild.voice_client.stop()  # This will trigger the after callback which calls play_next
                 embed = state["current_message"].embeds[0]
                 embed.title = "Sıradaki şarkıya geçildi."
                 await state["current_message"].edit(embed=embed)
 
-
         async def exit_callback(interaction):
             await interaction.response.defer()
-            if ctx.voice_client and ctx.voice_client.is_connected():
-                if ctx.author != state["caller"]:
+            if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
+                if interaction.user != state["caller"]:
                     await interaction.followup.send("Botu sadece çağıran kişi çıkartabilir.", ephemeral=True)
                     return
-                await ctx.voice_client.disconnect()
+                await interaction.guild.voice_client.disconnect()
                 state["queue"].clear()
                 state["is_playing"] = False
                 await state["current_message"].delete()
                 state["current_message"] = None
                 embed = discord.Embed(title="Çaycı Artık Özgür!", description="Bot ses kanalından çıkartıldı.", color=discord.Color.red())
-                message = await ctx.send(embed=embed)
+                message = await interaction.channel.send(embed=embed)
             else:
-                await ctx.send("Bot bir ses kanalında değil.")
+                await interaction.channel.send("Bot bir ses kanalında değil.")
 
         async def siradakiler_callback(interaction):
             await interaction.response.defer()
-            if ctx.voice_client and ctx.voice_client.is_connected():
+            if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
                 valid_queue = [entry for entry in state["queue"] if entry.get('title') and entry.get('url')]
                 if valid_queue:
                     pages = []
@@ -257,13 +256,13 @@ class Music(commands.Cog):
                     view = View()
                     view.add_item(previous_button)
                     view.add_item(next_button)
-                    message = await ctx.send(embed=embed, view=view)
+                    message = await interaction.channel.send(embed=embed, view=view)
                     await message.delete(delay=30)  # 30 saniye sonra mesajı sil
                 else:
-                    message = await ctx.send("Sırada şarkı yok.")
+                    message = await interaction.channel.send("Sırada şarkı yok.")
                     await message.delete(delay=30)  # 30 saniye sonra mesajı sil
             else:
-                message = await ctx.send("Bot bir ses kanalında değil.")
+                message = await interaction.channel.send("Bot bir ses kanalında değil.")
                 await message.delete(delay=30)  # 30 saniye sonra mesajı sil
 
         exit_button = Button(label="⏹️", style=discord.ButtonStyle.primary)
@@ -287,10 +286,10 @@ class Music(commands.Cog):
 
         return view
 
-    @commands.command()
-    async def siradakiler(self, ctx):
-        state = self.get_guild_state(ctx.guild.id)
-        if ctx.voice_client and ctx.voice_client.is_connected():
+    @discord.app_commands.command(name="siradakiler", description="Sıradaki şarkıları gösterir")
+    async def slash_siradakiler(self, interaction: discord.Interaction):
+        state = self.get_guild_state(interaction.guild.id)
+        if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
             valid_queue = [entry for entry in state["queue"] if entry.get('title') and entry.get('url')]
             if valid_queue:
                 pages = []
@@ -324,25 +323,24 @@ class Music(commands.Cog):
                         embed.description = pages[current_page]
                         await interaction.response.edit_message(embed=embed, view=view)
 
-                next_button = Button(label="➡️", style=discord.ButtonStyle.primary)
-                previous_button = Button(label="⬅️", style=discord.ButtonStyle.primary)
+                    next_button = Button(label="İleri", style=discord.ButtonStyle.primary)
+                    previous_button = Button(label="Geri", style=discord.ButtonStyle.primary)
 
+                    next_button.callback = next_callback
+                    previous_button.callback = previous_callback
 
-                next_button.callback = next_callback
-                previous_button.callback = previous_callback
-
-                view = View()
-                view.add_item(previous_button)
-                view.add_item(next_button)
-                message = await ctx.send(embed=embed, view=view)
-                await message.delete(delay=30)  # 30 saniye sonra mesajı sil
+                    view = View()
+                    view.add_item(previous_button)
+                    view.add_item(next_button)
+                    message = await interaction.response.send_message(embed=embed, view=view)
+                    await message.delete(delay=30)  # 30 saniye sonra mesajı sil
             else:
-                message = await ctx.send("Sırada şarkı yok.")
+                message = await interaction.response.send_message("Sırada şarkı yok.")
                 await message.delete(delay=30)  # 30 saniye sonra mesajı sil
         else:
-            message = await ctx.send("Bot bir ses kanalında değil.")
+            message = await interaction.response.send_message("Bot bir ses kanalında değil.")
             await message.delete(delay=30)  # 30 saniye sonra mesajı sil
-
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
+
