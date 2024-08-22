@@ -3,7 +3,7 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 import aiosqlite
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 import aiofiles
@@ -16,6 +16,7 @@ class Oyunbildirim(commands.Cog):
         self.bot = bot
         self.check_deals.start()
         self.clear_old_deals.start()
+        self.daily_json_reset.start()
         self.bot.loop.create_task(self.init_db())
 
     async def init_db(self):
@@ -47,6 +48,7 @@ class Oyunbildirim(commands.Cog):
     def cog_unload(self):
         self.check_deals.cancel()
         self.clear_old_deals.cancel()
+        self.daily_json_reset.cancel()
         self.conn.close()
 
     async def cog_check(self, ctx):
@@ -139,10 +141,25 @@ class Oyunbildirim(commands.Cog):
         async with aiofiles.open(JSON_FILE, 'w') as f:
             await f.write(json.dumps(deals))
 
+    @tasks.loop(hours=24)  # Günlük olarak JSON dosyasını yenileme
+    async def daily_json_reset(self):
+        print("Günlük JSON sıfırlanıyor...")
+        if os.path.exists(JSON_FILE):
+            os.remove(JSON_FILE)
+        await self.load_deals_from_api()
+        print("JSON dosyası sıfırlandı ve yeniden dolduruldu.")
+
+    @daily_json_reset.before_loop
+    async def before_daily_json_reset(self):
+        await self.bot.wait_until_ready()
+        # Günlük sıfırlamanın zamanını ayarlamak için
+        now = datetime.now()
+        next_run = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        await discord.utils.sleep_until(next_run)
+
     async def check_if_deal_exists_for_guild(self, title, guild_id):
         await self.c.execute("SELECT 1 FROM PostedDeals WHERE title = ? AND guild_id = ?", (title, guild_id))
         result = await self.c.fetchone()
-        # print(f"Check if deal exists: {title} for guild {guild_id}, result: {result}")
         return result is not None
 
     async def save_deal(self, title, guild_id, channel_id, new_price, old_price, discount, store, url, now):
@@ -161,6 +178,7 @@ class Oyunbildirim(commands.Cog):
             channel = self.bot.get_channel(int(channel_id))
 
             profit = old_price - new_price
+            profit = round(profit, 2)
             title_length = len(title)
             title_line = "━" * title_length
 

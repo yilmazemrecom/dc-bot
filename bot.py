@@ -53,6 +53,8 @@ async def slash_komutlar(interaction: discord.Interaction):
             "- `/komutlar`: Tüm komutları listeler\n"
             "- `/oyunbildirimac <kanal>`: Belirtilen kanal için oyun indirim bildirimlerini açar\n"
             "- `/oyunbildirimkapat`: Oyun bildirimlerini kapatır\n"
+            "- `/haberbildirimac <kanal> <kaynak>`: Belirtilen kanal için haber bildirimlerini açar\n"
+            "- `/haberbildirimkapat`: Haber bildirimlerini kapatır\n"
             "- `/filmbildirimac <kanal>`: Belirtilen kanal için film öneri bildirimlerini açar\n"
             "- `/filmbildirimkapat`: Film bildirimlerini kapatır\n"
             "- `/siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular\n"
@@ -82,8 +84,8 @@ async def slash_komutlar(interaction: discord.Interaction):
         ), inline=False)
         
         embed.add_field(name="Diğer komutlar, takım oyunu kuralları ve yardım için", value=(
-            "Website: https://emreylmzcom.github.io/cayci/ \n"
-            "Gizlilik Politikası: https://emreylmzcom.github.io/cayci/gizlilik_politikasi.html"
+            "Website: https://cayci.com.tr \n"
+
         ), inline=False)
         
         await interaction.response.send_message(embed=embed)
@@ -120,7 +122,7 @@ async def before_update_server_info():
     await bot.wait_until_ready()
 
 async def load_extensions():
-    for extension in ['extensions.responses', 'extensions.games', 'extensions.economy', 'extensions.takimoyunu', 'extensions.music', 'extensions.oyunbildirim', 'extensions.film']:
+    for extension in ['extensions.responses', 'extensions.games', 'extensions.economy', 'extensions.takimoyunu', 'extensions.music', 'extensions.oyunbildirim', 'extensions.film', 'extensions.duel', 'extensions.haberbildirim' ]:
         await bot.load_extension(extension)
 
 async def main():
