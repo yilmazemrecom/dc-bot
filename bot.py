@@ -73,6 +73,7 @@ async def slash_komutlar(interaction: discord.Interaction):
             "- `/yazitura <bahis> <yazı/tura>`: Yazı tura oyunu\n"
             "- `/quiz`: Rastgele bir quiz sorusu sorar\n"
             "- `/rulet <bahis>`: Rulet oyunu. Ya hep ya hiç"
+            "- '/duello <kişi>': Seçtiğiniz kişiye duello isteği atar ve savaşırsınız."
         ), inline=False)
         
         embed.add_field(name="Takım Oyunu Komutları", value=(
