@@ -1,34 +1,18 @@
+from config import TELEGRAM_BOT_TOKEN
+from config import TELEGRAM_CHANNEL_ID
+import requests
 import discord
 from discord.ext import commands, tasks
-import feedparser
 import aiosqlite
-from datetime import datetime
-from html import unescape
-import re
 
-RSS_FEEDS = {
-    'genel hurriyet': 'https://www.hurriyet.com.tr/rss/anasayfa',
-    'genel haberturk': 'https://www.haberturk.com/rss',
-    'genel ntv': 'https://www.ntv.com.tr/gundem.rss',
-    'genel anadolu_ajansi': 'https://www.aa.com.tr/tr/rss/default?cat=gundem',
-    'genel bbc_world': 'http://feeds.bbci.co.uk/news/world/rss.xml',
-    'genel cnn_world': 'http://rss.cnn.com/rss/edition_world.rss',
-    'teknoloji webtekno': 'https://www.webtekno.com/rss.xml',
-    'teknoloji shiftdelete': 'https://shiftdelete.net/feed',
-    'teknoloji donanimhaber': 'https://www.donanimhaber.com/rss/tum/',
-    'oyun shiftdelete': 'https://shiftdelete.net/oyun/feed',
-}
 
-def clean_html(raw_html):
-    cleanr = re.compile('<.*?>')
-    cleantext = re.sub(cleanr, '', raw_html)
-    return unescape(cleantext)
-
-class Haberbildirim(commands.Cog):
+class HaberBildirim(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.check_news.start()
+        self.last_update_id = None
         self.bot.loop.create_task(self.init_db())
+        self.check_telegram_channel.start()  # Bot açıldığında döngü başlar
+        print("Haberbildirim initialized and check_telegram_channel started.")
 
     async def init_db(self):
         self.conn = await aiosqlite.connect('database/haber.db')
@@ -37,116 +21,104 @@ class Haberbildirim(commands.Cog):
             CREATE TABLE IF NOT EXISTS NewsNotifyChannels (
                 guild_id TEXT NOT NULL,
                 channel_id TEXT NOT NULL,
-                source TEXT NOT NULL,
-                PRIMARY KEY (guild_id, channel_id, source)
-            )
-        ''')
-        await self.c.execute('''
-            CREATE TABLE IF NOT EXISTS PostedNews (
-                title TEXT NOT NULL,
-                guild_id TEXT NOT NULL,
-                channel_id TEXT NOT NULL,
-                source TEXT NOT NULL,
-                last_shared TIMESTAMP NOT NULL,
-                PRIMARY KEY (title, guild_id, channel_id)
+                PRIMARY KEY (guild_id, channel_id)
             )
         ''')
         await self.conn.commit()
+        print("Database initialized.")
 
     def cog_unload(self):
-        self.check_news.cancel()
+        self.check_telegram_channel.cancel()
         self.conn.close()
+        print("Haberbildirim cog unloaded.")
 
-    async def cog_check(self, ctx):
-        return ctx.author.guild_permissions.administrator
-
-    @discord.app_commands.command(name="haberbildirimac", description="Belirtilen kanalda haber bildirimlerini açar")
+    @discord.app_commands.command(name="haberbildirimac", description="Belirtilen kanalda Telegram bildirimlerini açar")
     @discord.app_commands.checks.has_permissions(administrator=True)
-    async def haberbildirimac(self, interaction: discord.Interaction, kanal: discord.TextChannel, kaynak: str):
-        await self.c.execute('INSERT OR REPLACE INTO NewsNotifyChannels (guild_id, channel_id, source) VALUES (?, ?, ?)',
-                             (interaction.guild.id, kanal.id, kaynak))
+    async def haberbildirimac(self, interaction: discord.Interaction, kanal: discord.TextChannel):
+        await self.c.execute('INSERT OR REPLACE INTO NewsNotifyChannels (guild_id, channel_id) VALUES (?, ?)',
+                             (interaction.guild.id, kanal.id))
         await self.conn.commit()
-        await interaction.response.send_message(f"{kaynak} haberleri, saatte bir {kanal.mention} kanalında paylaşılacak.", ephemeral=True)
+        print(f"Telegram notifications enabled in guild {interaction.guild.id}, channel {kanal.id}.")
 
-    @discord.app_commands.command(name="haberbildirimkapat", description="Belirtilen kanalda haber bildirimlerini kapatır")
+        await interaction.response.send_message(f"Telegram'dan gelen mesajlar, belirttiğiniz {kanal.mention} kanalında paylaşılacak.", ephemeral=True)
+
+    @discord.app_commands.command(name="haberbildirimkapat", description="Belirtilen kanalda Telegram bildirimlerini kapatır")
     @discord.app_commands.checks.has_permissions(administrator=True)
-    async def haberbildirimkapat(self, interaction: discord.Interaction, kanal: discord.TextChannel, kaynak: str):
-        await self.c.execute('DELETE FROM NewsNotifyChannels WHERE guild_id = ? AND channel_id = ? AND source = ?',
-                             (interaction.guild.id, kanal.id, kaynak))
+    async def haberbildirimkapat(self, interaction: discord.Interaction, kanal: discord.TextChannel):
+        await self.c.execute('DELETE FROM NewsNotifyChannels WHERE guild_id = ? AND channel_id = ?',
+                             (interaction.guild.id, kanal.id))
         await self.conn.commit()
-        await interaction.response.send_message(f"{kaynak} haber kaynağı, {kanal.mention} kanalında kapatıldı.", ephemeral=True)
+        print(f"Telegram notifications disabled in guild {interaction.guild.id}, channel {kanal.id}.")
 
-    @haberbildirimac.autocomplete("kaynak")
-    async def kaynak_autocomplete(self, interaction: discord.Interaction, current: str):
-        return [
-            discord.app_commands.Choice(name=key, value=key)
-            for key in RSS_FEEDS.keys() if current.lower() in key.lower()
-        ]
+        await interaction.response.send_message(f"Telegram'dan gelen mesajlar {kanal.mention} kanalında paylaşılmayacak.", ephemeral=True)
 
-    async def get_latest_news(self, source):
-        url = RSS_FEEDS.get(source)
-        if not url:
-            return None
-        feed = feedparser.parse(url)
-        if feed.entries:
-            entry = feed.entries[0]  # Sadece ilk haberi alıyoruz
-            summary = clean_html(entry.summary) if 'summary' in entry else "Detaylar için tıklayın."
-            image = entry.get('media_thumbnail', [{'url': None}])[0]['url'] if 'media_thumbnail' in entry else None
-            return {
-                'title': entry.title,
-                'link': entry.link,
-                'summary': summary,
-                'image': image,
-                'source': source,
-            }
-        return None
+    @tasks.loop(seconds=10.0)
+    async def check_telegram_channel(self):
+        print("Checking Telegram channel for updates...")
+        url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates'
+        if self.last_update_id:
+            url += f'?offset={self.last_update_id + 1}'
+        
+        response = requests.get(url)
+        data = response.json()
 
-    @tasks.loop(minutes=60.0)
-    async def check_news(self):
-        await self.c.execute('SELECT guild_id, channel_id, source FROM NewsNotifyChannels')
-        channels = await self.c.fetchall()
+        if 'result' in data:
+            for update in data['result']:
+                if 'channel_post' in update:
+                    message = update['channel_post']
+                    chat_id = message['chat']['id']
+                    
+                    if str(chat_id) == TELEGRAM_CHANNEL_ID:
+                        print("Channel ID matched, processing message...")
+                        self.last_update_id = update['update_id']
 
-        for guild_id, channel_id, source in channels:
-            news_item = await self.get_latest_news(source)
-            if news_item:
-                if not await self.check_if_news_posted(news_item['title'], guild_id, channel_id):
-                    await self.notify_channel(guild_id, channel_id, news_item['title'], news_item['link'], news_item['summary'], news_item['image'], news_item['source'])
-                    await self.mark_news_as_posted(news_item['title'], guild_id, channel_id, source)
+                        text = message.get('text', '')
+                        caption = message.get('caption', '')
+                        photos = message.get('photo', [])
 
-    async def check_if_news_posted(self, title, guild_id, channel_id):
-        await self.c.execute("SELECT 1 FROM PostedNews WHERE title = ? AND guild_id = ? AND channel_id = ?", (title, guild_id, channel_id))
-        result = await self.c.fetchone()
-        return result is not None
+                        # Metin veya açıklama varsa işle
+                        if text or caption:
+                            content = text if text else caption
+                            embed = discord.Embed(
+                                title="Çaycı Haber Bildirimi",
+                                description=content,
+                                color=discord.Color.green(),
+                            )
 
-    async def mark_news_as_posted(self, title, guild_id, channel_id, source):
-        now = datetime.now()
-        await self.c.execute('INSERT INTO PostedNews (title, guild_id, channel_id, source, last_shared) VALUES (?, ?, ?, ?, ?)',
-                             (title, guild_id, channel_id, source, now))
-        await self.conn.commit()
+                            if photos:
+                                first_photo = photos[-1]
+                                file_id = first_photo['file_id']
+                                file_path_response = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}")
+                                
+                                if file_path_response.status_code == 200 and 'result' in file_path_response.json():
+                                    file_path = file_path_response.json()['result']['file_path']
+                                    media_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+                                    embed.set_image(url=media_url)
 
-    async def notify_channel(self, guild_id, channel_id, title, link, summary, image, source):
-        try:
-            channel = self.bot.get_channel(int(channel_id))
-            if channel:
-                # Renkli Embed Mesajı
-                embed = discord.Embed(
-                    title=title,
-                    description=summary,
-                    color=discord.Color.from_rgb(0, 153, 255),  # Mavi tonunda bir renk
-                    url=link
-                )
-                embed.set_author(name=source.capitalize())
-                if image:
-                    embed.set_image(url=image)
-                embed.add_field(name="Detaylar için tıkla", value=f"[Haberin Devamı]({link})", inline=False)
-                
-                await channel.send(embed=embed)
-        except Exception as e:
-            print(f"Error notifying channel: {channel_id} for guild: {guild_id}, error: {e}")
+                            embed.set_footer(text="Kaynak: Mint Haber")
 
-    @check_news.before_loop
-    async def before_check_news(self):
+                            await self.c.execute('SELECT guild_id, channel_id FROM NewsNotifyChannels')
+                            channels = await self.c.fetchall()
+
+                            for guild_id, channel_id in channels:
+                                discord_channel = self.bot.get_channel(int(channel_id))
+                                if discord_channel:
+                                    await discord_channel.send(embed=embed)
+                                    print(f"Sent message and media to guild {guild_id}, channel {channel_id}.")
+                                else:
+                                    print(f"Channel {channel_id} not found in guild {guild_id}.")
+
+                        # Bu güncelleme işlendi, sıradakine geç
+                        continue
+
+            # Tüm güncellemeleri işledikten sonra fonksiyonu sonlandır
+            return
+
+    @check_telegram_channel.before_loop
+    async def before_check_telegram_channel(self):
         await self.bot.wait_until_ready()
+        print("Bot is ready, starting check_telegram_channel loop.")
 
 async def setup(bot):
-    await bot.add_cog(Haberbildirim(bot))
+    await bot.add_cog(HaberBildirim(bot))
+    print("Haberbildirim cog loaded.")
