@@ -53,7 +53,7 @@ async def slash_komutlar(interaction: discord.Interaction):
             "- `/komutlar`: Tüm komutları listeler\n"
             "- `/oyunbildirimac <kanal>`: Belirtilen kanal için oyun indirim bildirimlerini açar\n"
             "- `/oyunbildirimkapat`: Oyun bildirimlerini kapatır\n"
-            "- `/haberbildirimac <kanal> <kaynak>`: Belirtilen kanal için haber bildirimlerini açar\n"
+            "- `/haberbildirimac <kanal>`: Belirtilen kanal için haber bildirimlerini açar\n"
             "- `/haberbildirimkapat`: Haber bildirimlerini kapatır\n"
             "- `/filmbildirimac <kanal>`: Belirtilen kanal için film öneri bildirimlerini açar\n"
             "- `/filmbildirimkapat`: Film bildirimlerini kapatır\n"
