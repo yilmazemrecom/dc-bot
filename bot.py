@@ -124,7 +124,7 @@ async def before_update_server_info():
     await bot.wait_until_ready()
 
 async def load_extensions():
-    for extension in ['extensions.responses', 'extensions.games', 'extensions.economy', 'extensions.takimoyunu', 'extensions.music', 'extensions.oyunbildirim', 'extensions.film', 'extensions.duel', 'extensions.haberbildirim' ]:
+    for extension in ['extensions.responses', 'extensions.games', 'extensions.economy', 'extensions.takimoyunu', 'extensions.music', 'extensions.oyunbildirim', 'extensions.film', 'extensions.duel', 'extensions.haberbildirim', 'extensions.reminder', ]:
         await bot.load_extension(extension)
 
 async def main():
