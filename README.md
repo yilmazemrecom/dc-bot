@@ -23,7 +23,12 @@ Bu Discord botu, çeşitli eğlence ve ekonomi komutları sunar. Bot, Discord su
 - `!bakiye`: Bakiyenizi gösterir
 - `!btransfer <kullanıcı> <miktar>`: Belirtilen kullanıcıya belirtilen miktarda sikke gönderir
 - `!siralama`: En zengin 20 kişiyi sıralar
+- `!sunucu_sikke_siralaması`: Sunucunuzdaki ilk 20'deki sikke krallarını listeler.
 - `!oyunbilayar <#kanal adı>`: Steam ve Epic games oyun indirimleri paylaşır.
+- `!hatırlatici_ekle <içerik> <zaman (örn: 2024-09-09 21:30:00)>`: Hatırlatıcı ekler, zamanı gelince özelden hatırlatır.
+- `!hatirlatmalar`: Hatırlatıcıları listeler
+- `!hatırlatici_sil <id>`: Hatırlatıcı siler
+
 
 ### Eğlence Komutları
 - `!bilmece`: Rastgele bir bilmece sorar
