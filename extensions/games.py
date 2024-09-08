@@ -15,6 +15,7 @@ class Games(commands.Cog):
 
     @discord.app_commands.command(name="bilmece", description="Bir bilmece sorar")
     async def slash_bilmece(self, interaction: discord.Interaction):
+        await update_user_server(user_id, interaction.guild.id)
         bilmece_havuzu = await load_bilmeceler()
         selected_riddle = random.choice(bilmece_havuzu)
         soru = selected_riddle["soru"]
@@ -39,6 +40,7 @@ class Games(commands.Cog):
 
     @discord.app_commands.command(name="zar", description="Zar atar ve tahmininizi kontrol eder")
     async def slash_zar(self, interaction: discord.Interaction, bahis: int, tahmin: int):
+        await update_user_server(user_id, interaction.guild.id)
         if bahis <= 0 or tahmin < 1 or tahmin > 6:
             embed = discord.Embed(title="Hata", description=f"{interaction.user.mention}, Geçerli bir bahis miktarı ve tahmin belirtmelisiniz.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed)
@@ -69,6 +71,7 @@ class Games(commands.Cog):
 
     @discord.app_commands.command(name="quiz", description="Bir quiz sorusu sorar")
     async def slash_quiz(self, interaction: discord.Interaction):
+        await update_user_server(user_id, interaction.guild.id)
         quiz_sorulari = await load_quiz_questions()
         selected_question = random.choice(quiz_sorulari)
         soru, cevap = selected_question["soru"], selected_question["cevap"]
@@ -95,6 +98,7 @@ class Games(commands.Cog):
 
     @discord.app_commands.command(name="rulet", description="Rulet oynar")
     async def slash_rulet(self, interaction: discord.Interaction, bahis: int):
+        await update_user_server(user_id, interaction.guild.id)
         if bahis <= 0:
             embed = discord.Embed(title="Hata", description=f"{interaction.user.mention} Geçerli bir bahis miktarı belirtmelisiniz.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed)
@@ -124,6 +128,7 @@ class Games(commands.Cog):
 
     @discord.app_commands.command(name="yazitura", description="Yazı tura oyunu oynar")
     async def slash_yazitura(self, interaction: discord.Interaction, bahis: int, secim: str):
+        await update_user_server(user_id, interaction.guild.id)
         if bahis <= 0:
             embed = discord.Embed(title="Hata", description=f"{interaction.user.mention} Geçerli bir bahis miktarı belirtmelisiniz.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed)

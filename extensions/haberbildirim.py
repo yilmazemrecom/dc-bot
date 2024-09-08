@@ -54,7 +54,6 @@ class HaberBildirim(commands.Cog):
 
     @tasks.loop(seconds=10.0)
     async def check_telegram_channel(self):
-        print("Checking Telegram channel for updates...")
         url = f'https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates'
         if self.last_update_id:
             url += f'?offset={self.last_update_id + 1}'

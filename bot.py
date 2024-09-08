@@ -3,7 +3,7 @@ import discord
 from discord.ext import commands, tasks
 import aiosqlite
 import os
-from util import init_db, load_economy, save_economy, add_user_to_economy
+from util import init_db, load_economy, save_economy, add_user_to_economy, update_user_server, update_existing_table
 
 PREFIX = '!'
 
@@ -20,6 +20,7 @@ async def on_ready():
         await init_db()
         update_server_info.start()
         update_server_count.start()
+
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} command(s)")
     except Exception as e:
@@ -129,6 +130,7 @@ async def load_extensions():
 async def main():
     async with bot:
         await load_extensions()
+        await update_existing_table()
         await bot.start(TOKEN)
 
 if __name__ == "__main__":

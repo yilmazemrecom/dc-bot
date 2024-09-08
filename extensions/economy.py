@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from util import load_economy, save_economy, add_user_to_economy
+from util import load_economy, save_economy, add_user_to_economy, update_user_server
 import aiosqlite
 from currency_converter import CurrencyConverter
 
@@ -14,6 +14,8 @@ class Economy(commands.Cog):
         user_id = str(interaction.user.id)
         username = interaction.user.name
         economy = await add_user_to_economy(user_id, username)
+        await update_user_server(user_id, interaction.guild.id)
+       
         bakiye = economy[2]
         embed = discord.Embed(color=discord.Color.blue())
 
@@ -77,6 +79,23 @@ class Economy(commands.Cog):
 
         embed = discord.Embed(title="Sıralama", description=sıralama_mesajı, color=discord.Color.blue())
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="sunucu_sikke_siralamasi", description="Sunucudaki üyelerin sikkelerini gösterir")
+    async def slash_sunucu_sikke_siralamasi(self, interaction: discord.Interaction):
+        await update_user_server(user_id, interaction.guild.id)
+        async with aiosqlite.connect('database/economy.db') as db:
+            cursor = await db.execute('SELECT * FROM economy WHERE sunucu_id = ? ORDER BY bakiye DESC LIMIT 20', (str(interaction.guild.id),))
+            rows = await cursor.fetchall()
+
+        siralama_mesaji = "Sunucunun En Zengin 20 Kişisi:\n"
+        for index, row in enumerate(rows, start=1):
+            username = row[1][:-3] + "***" if len(row[1]) > 3 else "***"
+            bakiye = row[2]
+            siralama_mesaji += f"{index}. {username} = {bakiye} sikke\n"
+
+        embed = discord.Embed(title="Sunucu Sıralaması", description=siralama_mesaji, color=discord.Color.blue())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
     @app_commands.command(name="dolar", description="1 Dolar'ın TL karşılığını gösterir")
     async def slash_dolar(self, interaction: discord.Interaction):

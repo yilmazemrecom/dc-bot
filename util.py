@@ -9,6 +9,7 @@ async def init_db():
         await db.execute('''
             CREATE TABLE IF NOT EXISTS economy (
                 user_id TEXT PRIMARY KEY,
+                sunucu_id TEXT,
                 username TEXT,
                 bakiye INTEGER
             )
@@ -34,15 +35,44 @@ async def init_db():
         ''')
         await db.commit()
 
+async def update_existing_table():
+    async with aiosqlite.connect(DATABASE) as db:
+        cursor = await db.execute("PRAGMA table_info(economy);")
+        columns = await cursor.fetchall()
+        column_names = [column[1] for column in columns]  # Sütun adı 2. indekste yer alır
+        
+        # 'sunucu_id' sütunu zaten var mı kontrol et
+        if "sunucu_id" not in column_names:
+            await db.execute('ALTER TABLE economy ADD COLUMN sunucu_id TEXT')
+            print("sunucu_id sütunu eklendi.")
+        else:
+            print("sunucu_id sütunu zaten var.")
+        
+        await db.commit()
+
+async def update_user_server(user_id, sunucu_id):
+    try:
+        async with aiosqlite.connect(DATABASE) as db:
+            cursor = await db.execute('UPDATE economy SET sunucu_id = ? WHERE user_id = ?', (sunucu_id, user_id))
+            await db.commit()
+            if cursor.rowcount == 0:
+                print(f"No records updated for user_id {user_id}. Check if user_id exists.")
+            else:
+                print(f"Updated {cursor.rowcount} records with sunucu_id {sunucu_id} for user_id {user_id}.")
+    except Exception as e:
+        print(f"Failed to update due to: {e}")
+
+
+
 async def load_economy(user_id):
     async with aiosqlite.connect(DATABASE) as db:
         cursor = await db.execute('SELECT * FROM economy WHERE user_id = ?', (user_id,))
         row = await cursor.fetchone()
         return row
 
-async def save_economy(user_id, username, bakiye):
+async def save_economy(user_id, username, bakiye, sunucu_id):
     async with aiosqlite.connect(DATABASE) as db:
-        await db.execute('REPLACE INTO economy (user_id, username, bakiye) VALUES (?, ?, ?)', (user_id, username, bakiye))
+        await db.execute('REPLACE INTO economy (user_id, username, bakiye, sunucu_id) VALUES (?, ?, ?, ?)', (user_id, username, bakiye, sunucu_id))
         await db.commit()
 
 async def add_user_to_economy(user_id, username):
