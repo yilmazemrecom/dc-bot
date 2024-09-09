@@ -1,7 +1,7 @@
 import os
 import json
 import aiofiles
-from datetime import timezone, datetime
+from datetime import timezone, datetime, timedelta
 from typing import Optional, List, Dict, Any
 import discord
 from discord.ext import commands, tasks
@@ -14,19 +14,22 @@ class Reminder(commands.Cog):
         self.check_reminders.start()
 
     @discord.app_commands.command(name='hatirlatici_ekle', description='Yeni bir hatırlatıcı ekle')
-    async def hatirlatici_ekle(self, interaction: discord.Interaction, content: str, reminder_time: str):
+    async def hatirlatici_ekle(self, interaction: discord.Interaction, content: str, days: int, hours: int, minutes: int):
         """
         Hatırlatıcı ekler.
         :param content: Hatırlatıcı içeriği
-        :param reminder_time: Hatırlatıcı zamanı, format: 'YYYY-MM-DD HH:MM:SS'
+        :param days: Kaç gün sonra
+        :param hours: Kaç saat sonra
+        :param minutes: Kaç dakika sonra
         """
         user_id = interaction.user.id
         try:
-            reminder_time = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M:%S")
+            current_time = datetime.now(timezone.utc)
+            reminder_time = current_time + timedelta(days=days, hours=hours, minutes=minutes)
             await Reminder.add(user_id, content, reminder_time)
-            await interaction.response.send_message(f"Hatırlatıcı eklendi: {content} Zaman: {reminder_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        except ValueError:
-            await interaction.response.send_message("Geçersiz tarih formatı. Lütfen 'YYYY-MM-DD HH:MM:SS' formatını kullanın.")
+            await interaction.response.send_message(f"Hatırlatıcı eklendi: {content}\nZaman: {reminder_time.strftime('%Y-%m-%d %H:%M')} UTC")
+        except ValueError as e:
+            await interaction.response.send_message(f"Geçersiz zaman: {str(e)}")
 
     @discord.app_commands.command(name='hatirlatici_sil', description='Bir hatırlatıcı sil')
     async def hatirlatici_sil(self, interaction: discord.Interaction, reminder_id: int):
@@ -39,7 +42,7 @@ class Reminder(commands.Cog):
         user_id = interaction.user.id
         reminders = await Reminder.get_reminders(user_id)
         if reminders:
-            response = "\n".join([f"{r['id']}: {r['content']} - {datetime.fromtimestamp(r['timestamp']).strftime('%Y-%m-%d %H:%M:%S')}" for r in reminders])
+            response = "\n".join([f"{r['id']}: {r['content']} - {datetime.fromtimestamp(r['timestamp'], tz=timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC" for r in reminders])
             await interaction.response.send_message(f"Hatırlatmalar:\n{response}")
         else:
             await interaction.response.send_message("Hiç hatırlatıcı yok.")
@@ -47,12 +50,13 @@ class Reminder(commands.Cog):
     @tasks.loop(minutes=1)
     async def check_reminders(self):
         await self.bot.wait_until_ready()
+        current_time = datetime.now(timezone.utc).timestamp()
         for filename in os.listdir(Reminder.BASE_PATH):
             if filename.endswith("_reminders.json"):
                 user_id = int(filename.split('_')[0])
                 reminders = await Reminder.get_reminders(user_id)
                 for reminder in reminders:
-                    if Reminder.has_expired(reminder['timestamp']):
+                    if reminder['timestamp'] <= current_time:
                         await self.send_dm(user_id, reminder['content'])
                         await Reminder.delete(user_id, reminder['id'])
 
@@ -66,8 +70,9 @@ class Reminder(commands.Cog):
                     color=discord.Color.blue()
                 )
                 embed.set_author(name="CayciBot", icon_url="https://caycibot.com.tr/static/images/logo.png")
-                embed.add_field(name="📅 Tarih", value=datetime.now().strftime("%d.%m.%Y"), inline=True)
-                embed.add_field(name="⏰ Saat", value=datetime.now().strftime("%H:%M"), inline=True)
+                current_time = datetime.now(timezone.utc)
+                embed.add_field(name="📅 Tarih", value=current_time.strftime("%d.%m.%Y"), inline=True)
+                embed.add_field(name="⏰ Saat", value=current_time.strftime("%H:%M UTC"), inline=True)
                 embed.set_footer(text="CayciBot - Sizin dijital çaycınız | caycibot.com.tr")
                 
                 await user.send(embed=embed)
@@ -80,14 +85,14 @@ class Reminder(commands.Cog):
             print(f"Kullanıcı {user_id} DM'leri kapalı.")
         except Exception as e:
             print(f"Mesaj gönderim hatası: {e}")
+
     @staticmethod
     def current_time() -> float:
-        dt = datetime.now(timezone.utc)
-        return dt.timestamp()
+        return datetime.now(timezone.utc).timestamp()
 
     @staticmethod
     def has_expired(timestamp: float) -> bool:
-        return timestamp < Reminder.current_time()
+        return timestamp <= Reminder.current_time()
 
     @classmethod
     async def add(cls, user_id: int, content: str, reminder_time: datetime) -> None:
