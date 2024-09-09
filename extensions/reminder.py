@@ -5,6 +5,8 @@ from datetime import timezone, datetime, timedelta
 from typing import Optional, List, Dict, Any
 import discord
 from discord.ext import commands, tasks
+from discord import Embed, Color
+
 
 class Reminder(commands.Cog):
     BASE_PATH = './json/reminders/'
@@ -28,7 +30,17 @@ class Reminder(commands.Cog):
             reminder_time = current_time + timedelta(days=gun, hours=saat, minutes=dakika)
             await Reminder.add(user_id, icerik, reminder_time)
             turkey_time = reminder_time + timedelta(hours=3)
-            await interaction.response.send_message(f"Hatırlatıcı eklendi: {icerik}\nZaman: {turkey_time.strftime('%Y-%m-%d %H:%M')} (Türkiye saati)")
+            embed = discord.Embed(
+                title="🔔 Yeni Hatırlatıcı Eklendi!",
+                description=f"**{interaction.user.name}**, hatırlatıcınız başarıyla ayarlandı.",
+                color=discord.Color.green()
+            )
+            embed.add_field(name="📝 İçerik", value=icerik, inline=False)
+            embed.add_field(name="🕰️ Zaman", value=turkey_time.strftime('%d %B %Y, %H:%M'), inline=False)
+            embed.set_footer(text="CayciBot - Sizin dijital çaycınız | caycibot.com.tr")
+            
+            await interaction.response.send_message(embed=embed)
+
         except ValueError as e:
             await interaction.response.send_message(f"Geçersiz zaman: {str(e)}")
 
@@ -42,9 +54,25 @@ class Reminder(commands.Cog):
     async def hatirlaticilar(self, interaction: discord.Interaction):
         user_id = interaction.user.id
         reminders = await Reminder.get_reminders(user_id)
+
         if reminders:
-            response = "\n".join([f"{r['id']}: {r['content']} - {(datetime.fromtimestamp(r['timestamp'], tz=timezone.utc) + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M')} (Türkiye saati)" for r in reminders])
-            await interaction.response.send_message(f"Hatırlatıcılar:\n{response}")
+            embed = Embed(
+                title="⏰ Mevcut Hatırlatıcılar",
+                description=f"{interaction.user.name}, işte ayarladığınız hatırlatıcılar:",
+                color=Color.blue()
+            )
+
+            for r in reminders:
+                reminder_time = (datetime.fromtimestamp(r['timestamp'], tz=timezone.utc) + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M')
+                embed.add_field(
+                    name=f"📝 Hatırlatıcı {r['id']}", 
+                    value=f"**İçerik:** {r['content']}\n**Zaman:** {reminder_time} (Türkiye saati)", 
+                    inline=False
+                )
+
+            embed.set_footer(text="ÇaycıBot - Sizin dijital çaycınız | caycibot.com.tr")
+            await interaction.response.send_message(embed=embed)
+        
         else:
             await interaction.response.send_message("Hiç hatırlatıcı yok.")
 
