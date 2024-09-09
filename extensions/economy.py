@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from util import load_economy, save_economy, add_user_to_economy
+from util import load_economy, save_economy, add_user_to_economy, update_user_server
 import aiosqlite
 from currency_converter import CurrencyConverter
 
