@@ -70,9 +70,9 @@ async def load_economy(user_id):
         row = await cursor.fetchone()
         return row
 
-async def save_economy(user_id, username, bakiye, sunucu_id):
+async def save_economy(user_id, username, bakiye):
     async with aiosqlite.connect(DATABASE) as db:
-        await db.execute('REPLACE INTO economy (user_id, username, bakiye, sunucu_id) VALUES (?, ?, ?, ?)', (user_id, username, bakiye, sunucu_id))
+        await db.execute('REPLACE INTO economy (user_id, username, bakiye) VALUES (?, ?, ?)', (user_id, username, bakiye))
         await db.commit()
 
 async def add_user_to_economy(user_id, username):
