@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from util import load_economy, save_economy, add_user_to_economy, update_user_server
+from util import load_economy, save_economy, add_user_to_economy
 import aiosqlite
 from currency_converter import CurrencyConverter
 
@@ -82,19 +82,23 @@ class Economy(commands.Cog):
 
     @app_commands.command(name="sunucu_sikke_siralamasi", description="Sunucudaki üyelerin sikkelerini gösterir")
     async def slash_sunucu_sikke_siralamasi(self, interaction: discord.Interaction):
-        await update_user_server(user_id, interaction.guild.id)
+        await self.update_user_server(interaction.user.id, interaction.guild.id)
         async with aiosqlite.connect('database/economy.db') as db:
-            cursor = await db.execute('SELECT * FROM economy WHERE sunucu_id = ? ORDER BY bakiye DESC LIMIT 20', (str(interaction.guild.id),))
+            cursor = await db.execute('SELECT username, bakiye FROM economy WHERE sunucu_id = ? ORDER BY bakiye DESC LIMIT 20', (str(interaction.guild.id),))
             rows = await cursor.fetchall()
 
         siralama_mesaji = "Sunucunun En Zengin 20 Kişisi:\n"
-        for index, row in enumerate(rows, start=1):
-            username = row[1][:-3] + "***" if len(row[1]) > 3 else "***"
-            bakiye = row[2]
-            siralama_mesaji += f"{index}. {username} = {bakiye} sikke\n"
+        for index, (username, bakiye) in enumerate(rows, start=1):
+            masked_username = username[:-3] + "***" if len(username) > 3 else "***"
+            siralama_mesaji += f"{index}. {masked_username} = {bakiye:,} sikke\n"
 
         embed = discord.Embed(title="Sunucu Sıralaması", description=siralama_mesaji, color=discord.Color.blue())
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    async def update_user_server(self, user_id: int, server_id: int):
+        async with aiosqlite.connect('database/economy.db') as db:
+            await db.execute('INSERT OR IGNORE INTO economy (user_id, sunucu_id, bakiye) VALUES (?, ?, 0)', (user_id, server_id))
+            await db.commit()
 
 
     @app_commands.command(name="dolar", description="1 Dolar'ın TL karşılığını gösterir")

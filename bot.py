@@ -124,13 +124,12 @@ async def before_update_server_info():
     await bot.wait_until_ready()
 
 async def load_extensions():
-    for extension in ['extensions.responses', 'extensions.games', 'extensions.economy', 'extensions.takimoyunu', 'extensions.music', 'extensions.oyunbildirim', 'extensions.film', 'extensions.duel', 'extensions.haberbildirim', 'extensions.reminder', ]:
+    for extension in ['extensions.responses', 'extensions.games', 'extensions.economy', 'extensions.takimoyunu', 'extensions.music', 'extensions.oyunbildirim', 'extensions.duel', 'extensions.haberbildirim', 'extensions.reminder', ]:
         await bot.load_extension(extension)
 
 async def main():
     async with bot:
         await load_extensions()
-        await update_existing_table()
         await bot.start(TOKEN)
 
 if __name__ == "__main__":
