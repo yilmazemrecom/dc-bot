@@ -14,36 +14,37 @@ class Reminder(commands.Cog):
         self.check_reminders.start()
 
     @discord.app_commands.command(name='hatirlatici_ekle', description='Yeni bir hatırlatıcı ekle')
-    async def hatirlatici_ekle(self, interaction: discord.Interaction, content: str, days: int, hours: int, minutes: int):
+    async def hatirlatici_ekle(self, interaction: discord.Interaction, icerik: str, gun: int, saat: int, dakika: int):
         """
         Hatırlatıcı ekler.
-        :param content: Hatırlatıcı içeriği
-        :param days: Kaç gün sonra
-        :param hours: Kaç saat sonra
-        :param minutes: Kaç dakika sonra
+        :param icerik: Hatırlatıcı içeriği
+        :param gun: Kaç gün sonra
+        :param saat: Kaç saat sonra
+        :param dakika: Kaç dakika sonra
         """
         user_id = interaction.user.id
         try:
             current_time = datetime.now(timezone.utc)
-            reminder_time = current_time + timedelta(days=days, hours=hours, minutes=minutes)
-            await Reminder.add(user_id, content, reminder_time)
-            await interaction.response.send_message(f"Hatırlatıcı eklendi: {content}\nZaman: {reminder_time.strftime('%Y-%m-%d %H:%M')} UTC")
+            reminder_time = current_time + timedelta(days=gun, hours=saat, minutes=dakika)
+            await Reminder.add(user_id, icerik, reminder_time)
+            turkey_time = reminder_time + timedelta(hours=3)
+            await interaction.response.send_message(f"Hatırlatıcı eklendi: {icerik}\nZaman: {turkey_time.strftime('%Y-%m-%d %H:%M')} (Türkiye saati)")
         except ValueError as e:
             await interaction.response.send_message(f"Geçersiz zaman: {str(e)}")
 
     @discord.app_commands.command(name='hatirlatici_sil', description='Bir hatırlatıcı sil')
-    async def hatirlatici_sil(self, interaction: discord.Interaction, reminder_id: int):
+    async def hatirlatici_sil(self, interaction: discord.Interaction, hatirlatici_id: int):
         user_id = interaction.user.id
-        await Reminder.delete(user_id, reminder_id)
-        await interaction.response.send_message(f"Hatırlatıcı silindi: {reminder_id}")
+        await Reminder.delete(user_id, hatirlatici_id)
+        await interaction.response.send_message(f"Hatırlatıcı silindi: {hatirlatici_id}")
 
-    @discord.app_commands.command(name='hatirlatmalar', description='Tüm hatırlatıcıları listele')
-    async def hatirlatmalar(self, interaction: discord.Interaction):
+    @discord.app_commands.command(name='hatirlaticilar', description='Tüm hatırlatıcıları listele')
+    async def hatirlaticilar(self, interaction: discord.Interaction):
         user_id = interaction.user.id
         reminders = await Reminder.get_reminders(user_id)
         if reminders:
-            response = "\n".join([f"{r['id']}: {r['content']} - {datetime.fromtimestamp(r['timestamp'], tz=timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC" for r in reminders])
-            await interaction.response.send_message(f"Hatırlatmalar:\n{response}")
+            response = "\n".join([f"{r['id']}: {r['content']} - {(datetime.fromtimestamp(r['timestamp'], tz=timezone.utc) + timedelta(hours=3)).strftime('%Y-%m-%d %H:%M')} (Türkiye saati)" for r in reminders])
+            await interaction.response.send_message(f"Hatırlatıcılar:\n{response}")
         else:
             await interaction.response.send_message("Hiç hatırlatıcı yok.")
 
@@ -70,9 +71,9 @@ class Reminder(commands.Cog):
                     color=discord.Color.blue()
                 )
                 embed.set_author(name="CayciBot", icon_url="https://caycibot.com.tr/static/images/logo.png")
-                current_time = datetime.now(timezone.utc)
+                current_time = datetime.now(timezone.utc) + timedelta(hours=3)
                 embed.add_field(name="📅 Tarih", value=current_time.strftime("%d.%m.%Y"), inline=True)
-                embed.add_field(name="⏰ Saat", value=current_time.strftime("%H:%M UTC"), inline=True)
+                embed.add_field(name="⏰ Saat", value=current_time.strftime("%H:%M"), inline=True)
                 embed.set_footer(text="CayciBot - Sizin dijital çaycınız | caycibot.com.tr")
                 
                 await user.send(embed=embed)
