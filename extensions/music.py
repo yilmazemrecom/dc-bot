@@ -172,10 +172,11 @@ class Music(commands.Cog):
                 await interaction.guild.voice_client.disconnect()
 
         except Exception as e:
-            await interaction.followup.send(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}", ephemeral=True)
+            print(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
             return
 
     def get_control_buttons(self, interaction):
+        view = discord.ui.View(timeout=600)
         state = self.get_guild_state(interaction.guild.id)
         async def stop_callback(interaction):
             await interaction.response.defer()
@@ -202,7 +203,7 @@ class Music(commands.Cog):
         async def skip_callback(interaction):
             await interaction.response.defer()
             if interaction.guild.voice_client.is_playing():
-                interaction.guild.voice_client.stop()  # This will trigger the after callback which calls play_next
+                interaction.guild.voice_client.stop()
                 embed = state["current_message"].embeds[0]
                 embed.title = "Sıradaki şarkıya geçildi."
                 await state["current_message"].edit(embed=embed)
@@ -344,13 +345,13 @@ class Music(commands.Cog):
                     view.add_item(previous_button)
                     view.add_item(next_button)
                     message = await interaction.response.send_message(embed=embed, view=view)
-                    await message.delete(delay=30)  # 30 saniye sonra mesajı sil
+                    await message.delete(delay=30)  
             else:
                 message = await interaction.response.send_message("Sırada şarkı yok.")
-                await message.delete(delay=30)  # 30 saniye sonra mesajı sil
+                await message.delete(delay=30) 
         else:
             message = await interaction.response.send_message("Bot bir ses kanalında değil.")
-            await message.delete(delay=30)  # 30 saniye sonra mesajı sil
+            await message.delete(delay=30) 
 
 
     @commands.Cog.listener()
@@ -359,7 +360,7 @@ class Music(commands.Cog):
             return
 
         state = self.get_guild_state(member.guild.id)
-        if before.channel is not None and after.channel is None:  # Bot was disconnected
+        if before.channel is not None and after.channel is None:
             state["queue"].clear()
             state["is_playing"] = False
             if state["current_message"]:
@@ -391,6 +392,17 @@ class Music(commands.Cog):
     @check_voice_channel.before_loop
     async def before_check_voice_channel(self):
         await self.bot.wait_until_ready()
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        if interaction.type == discord.InteractionType.component:
+            state = self.get_guild_state(interaction.guild.id)
+            if state["current_message"] and interaction.message.id == state["current_message"].id:
+                await interaction.response.defer()
+                # Refresh the message to keep buttons active
+                embed = state["current_message"].embeds[0]
+                view = self.get_control_buttons(interaction)
+                await state["current_message"].edit(embed=embed, view=view)
 
 
 
