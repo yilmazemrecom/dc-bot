@@ -457,7 +457,7 @@ class Music(commands.Cog):
 
     @discord.app_commands.command(name="cal")
     @discord.app_commands.describe(
-        sarki="Şarkı adı veya URL (YouTube/Spotify)"
+        sarki="Şarkı adı veya URL (Sadece YouTube linki giriniz)"
     )
     async def slash_cal(self, interaction: discord.Interaction,
         sarki: str,
