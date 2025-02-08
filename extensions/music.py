@@ -1093,5 +1093,71 @@ class Music(commands.Cog):
         except Exception as e:
             print(f"Mesaj güncelleme hatası: {e}")
 
+    @discord.app_commands.command(name="favoricallist", description="Tüm favori şarkılarınızı sıraya ekler")
+    async def slash_favoricallist(self, interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        guild_id = str(interaction.guild.id)
+        
+        # Ses kanalı kontrolü
+        try:
+            channel = interaction.user.voice.channel
+            if interaction.guild.voice_client is None:
+                await channel.connect()
+            elif interaction.guild.voice_client.channel != channel:
+                await interaction.response.send_message(
+                    f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). "
+                    "Müsait olunca tekrar çağırın.", 
+                    ephemeral=True
+                )
+                return
+        except AttributeError:
+            await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
+            return
+
+        # Favorileri kontrol et
+        favorites = await self.get_favorites(user_id, guild_id)
+        
+        if not favorites:
+            await interaction.response.send_message("Favori şarkı listeniz boş!", ephemeral=True)
+            return
+            
+        # Yükleniyor mesajı
+        await interaction.response.defer()
+        
+        try:
+            state = self.get_guild_state(interaction.guild.id)
+            songs_added = 0
+
+            for song_title, song_url in favorites:
+                # Her şarkıyı YouTube'dan yükle
+                entries = await self.YTDLSource.from_url(song_url, loop=self.bot.loop, stream=True)
+                if entries and len(entries) > 0:
+                    async with state["queue_lock"]:
+                        state["queue"].append(entries[0])
+                        songs_added += 1
+
+            if songs_added > 0:
+                if not state["is_playing"]:
+                    await self.prepare_next_song(interaction)
+                
+                embed = discord.Embed(
+                    title="Favoriler Eklendi",
+                    description=f"✅ {songs_added} favori şarkı sıraya eklendi!",
+                    color=discord.Color.green()
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            else:
+                await interaction.followup.send(
+                    "Şarkılar eklenirken bir sorun oluştu.", 
+                    ephemeral=True
+                )
+
+        except Exception as e:
+            print(f"Favori şarkı listesi çalma hatası: {e}")
+            await interaction.followup.send(
+                "Şarkılar eklenirken bir hata oluştu.", 
+                ephemeral=True
+            )
+
 async def setup(bot):
     await bot.add_cog(Music(bot))
