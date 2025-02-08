@@ -50,56 +50,95 @@ async def slash_ping(interaction: discord.Interaction):
 
 # Slash komutu olarak 'komutlar'
 @bot.tree.command(name="komutlar", description="Tüm komutları listeler")
-async def slash_komutlar(interaction: discord.Interaction):
-    try:
-        embed = discord.Embed(title="Komut Listesi", color=discord.Color.blue())
-        
-        embed.add_field(name="Genel Komutlar", value=(
-            "- `/komutlar`: Tüm komutları listeler\n"
-            "- `/oyunbildirimac <kanal>`: Belirtilen kanal için oyun indirim bildirimlerini açar\n"
-            "- `/oyunbildirimkapat`: Oyun bildirimlerini kapatır\n"
-            "- `/haberbildirimac <kanal>`: Belirtilen kanal için haber bildirimlerini açar\n"
-            "- `/haberbildirimkapat`: Haber bildirimlerini kapatır\n"
-            "- `/hatirlatici_ekle <içerik> <gün> <saat> <dakika>`: Belirtilen zamanda belirtilen mesajı özelden hatırlatır\n"
-            "- `/hatirlaticilar`: Tüm hatırlatıcıları listeler\n"
-            "- `/hatirlatici_sil <hatirlatici_id>`: Belirtilen hatırlatıcıyı siler\n"
-            "- `/sunucu_sikke_siralamasi`: Sunucudaki üyelerin sikkelerini gösterir\n"
-            "- `/siralama`: En zengin 20 kişiyi sıralar - Tüm Sunucular\n"
-            "- `/bakiye`: Bakiyenizi gösterir\n"
-            "- `/btransfer <kisi> <tutar>`: Belirttiğiniz tutar kadar sikke transferi yapar."
-        ), inline=False)
-        
-        embed.add_field(name="Müzik Komutları", value=(
-            "- `/cal <şarkı adı veya Youtube URL>`: Belirtilen şarkıyı çalar\n"
-        ), inline=False)
-        
-        embed.add_field(name="Eğlence Komutları", value=(
-            "Para kazanmak için quiz veya bilmece bilebilirsiniz. Varsayılan bakiyeniz 100 sikke olarak eklenir.\n"
-            "- `/bilmece`: Rastgele bir bilmece sorar\n"
-            "- `/zar <bahis> <tahmin>`: Zar oyunu\n"
-            "- `/yazitura <bahis> <yazı/tura>`: Yazı tura oyunu\n"
-            "- `/quiz`: Rastgele bir quiz sorusu sorar\n"
-            "- `/rulet <bahis>`: Rulet oyunu. Ya hep ya hiç"
-            "- '/duello <kişi>': Seçtiğiniz kişiye duello isteği atar ve savaşırsınız."
-        ), inline=False)
-        
-        embed.add_field(name="Takım Oyunu Komutları", value=(
-            "- `/takimolustur <takım adı> <yatırım miktarı>`: Yeni bir takım oluşturur\n"
-            "- `/takimyatirim <yatırım miktarı>`: Takımınıza yatırım yapar\n"
-            "- `/macyap <bahis>`: Takımınızla maç yapar\n"
-            "- `/takimim`: Takımınızı gösterir\n"
-            "- `/lig`: Lig durumunu gösterir"
-        ), inline=False)
-        
-        embed.add_field(name="Diğer komutlar, takım oyunu kuralları ve yardım için", value=(
-            "Website: https://cayci.com.tr \n"
+async def komutlar(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🎮 Çaycı Bot - Komut Listesi",
+        description="Aşağıdaki komutları `/` ile kullanabilirsiniz\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯",
+        color=discord.Color.blue()
+    )
 
-        ), inline=False)
-        
-        await interaction.response.send_message(embed=embed)
-    except Exception as e:
-        print(f"Hata: {e}")
-        await interaction.response.send_message("Komutlar listesi alınırken bir hata oluştu.")
+    # Müzik Komutları
+    music_commands = (
+        "**`/cal`** • Şarkı çalar\n"
+        "**`/siradakiler`** • Sıradaki şarkıları gösterir\n"
+        "**`/favori`** • Şarkıyı favorilere ekler/çıkarır\n"
+        "**`/favoriler`** • Favori listesini gösterir\n"
+        "**`/favorical`** • Favorilerden şarkı çalar\n"
+        "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
+    )
+    embed.add_field(
+        name="🎵 Müzik Komutları", 
+        value=music_commands, 
+        inline=False
+    )
+
+    # Ekonomi Komutları
+    economy_commands = (
+        "**`/bakiye`** • Bakiyenizi gösterir\n"
+        "**`/btransfer`** • Para transferi yapar\n"
+        "**`/siralama`** • En zenginleri listeler\n"
+        "**`/dolar`** • Döviz kurunu gösterir\n"
+        "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
+    )
+    embed.add_field(
+        name="💰 Ekonomi Komutları", 
+        value=economy_commands, 
+        inline=False
+    )
+
+    # Oyun Komutları
+    game_commands = (
+        "🎲 **Kumar Oyunları**\n"
+        "**`/zar`** • Zar atarsın\n"
+        "**`/yazitura`** • Yazı tura atarsın\n"
+        "**`/rulet`** • Rulet oynarsın\n"
+        "**`/duello`** • Düello yaparsın\n\n"
+        "⚽ **Takım Sistemi**\n"
+        "**`/takimolustur`** • Takım kurarsın\n"
+        "**`/macyap`** • Maç yaparsın\n"
+        "**`/lig`** • Lig durumunu görürsün\n"
+        "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
+    )
+    embed.add_field(
+        name="🎮 Oyun Komutları", 
+        value=game_commands, 
+        inline=False
+    )
+
+    # Eğlence & Diğer
+    other_commands = (
+        "🎯 **Mini Oyunlar**\n"
+        "**`/bilmece`** • Bilmece çözersin\n"
+        "**`/quiz`** • Quiz oynarsın\n\n"
+        "📢 **Bildirimler**\n"
+        "**`/oyunbildirimac`** • İndirim bildirimleri\n"
+        "**`/haberbildirimac`** • Haber bildirimleri\n\n"
+        "⏰ **Hatırlatıcı**\n"
+        "**`/hatirlatici_ekle`** • Hatırlatıcı eklersin\n"
+        "**`/hatirlaticilar`** • Hatırlatıcıları görürsün"
+    )
+    embed.add_field(
+        name="🎯 Eğlence & Diğer", 
+        value=other_commands, 
+        inline=False
+    )
+
+    # Daha detaylı footer
+    embed.add_field(
+        name="🔗 Bağlantılar",
+        value=(
+            "**[🌐 Web Sitemiz](https://caycibot.com.tr)**\n"
+            "**[💬 Discord Sunucumuz](https://discord.gg/dSVRs26v5t)**"
+        ),
+        inline=False
+    )
+    
+    embed.set_footer(
+        text="Çaycı Bot - Geliştirici: Emre YILMAZ",
+        icon_url=bot.user.display_avatar.url
+    )
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @tasks.loop(hours=1)
 async def update_server_info():
