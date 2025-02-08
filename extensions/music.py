@@ -124,12 +124,15 @@ class Music(commands.Cog):
         state = self.get_guild_state(interaction.guild.id)
         
         try:
+            # Şu anki şarkıyı önceki şarkı olarak kaydet
+            if state["current_player"]:
+                state["previous_song"] = state["current_player"].copy()
+            
             # Döngü moduna göre işlem yap
             if state["current_player"]:
                 if state["loop"] == "single":
                     # Aynı şarkıyı tekrar çal
                     async with state["queue_lock"]:
-                        # Şu anki şarkının kopyasını oluştur
                         current_song = state["current_player"].copy()
                         state["queue"].insert(0, current_song)
                 elif state["loop"] == "queue":
@@ -137,13 +140,6 @@ class Music(commands.Cog):
                     async with state["queue_lock"]:
                         current_song = state["current_player"].copy()
                         state["queue"].append(current_song)
-            
-            # Şu anki şarkıyı önceki şarkı olarak kaydet
-            if state["current_player"]:
-                state["previous_song"] = state["current_player"].copy()
-            
-            # Yeni şarkıyı hazırla
-            await self.prepare_next_song(interaction)
             
             # Eğer kuyruk boşsa ve döngü modu queue ise tüm şarkıları tekrar ekle
             if not state["queue"] and state["loop"] == "queue" and state["previous_song"]:
@@ -166,6 +162,10 @@ class Music(commands.Cog):
                         await state["current_message"].edit(embed=end_embed, view=None)
                     except:
                         pass
+                return
+            
+            # Yeni şarkıyı hazırla
+            await self.prepare_next_song(interaction)
 
         except Exception as e:
             print(f"Play next callback hatası: {e}")
@@ -258,15 +258,33 @@ class Music(commands.Cog):
     # Yeni buton callback'leri
     async def button_previous_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
-        if state.get("previous_song"):
-            async with state["queue_lock"]:
-                state["queue"].insert(0, state["previous_song"])
-            if interaction.guild.voice_client:
-                interaction.guild.voice_client.stop()
-            await interaction.response.send_message("⏮️ Önceki şarkıya dönülüyor", ephemeral=True)
-        else:
-            await interaction.response.send_message("Önceki şarkı yok!", ephemeral=True)
-        await self.update_player_message(interaction, state)
+        
+        try:
+            await interaction.response.defer(ephemeral=True)
+            
+            if state.get("previous_song"):
+                # Şu anki şarkıyı kuyruğun başına ekle
+                if state["current_player"]:
+                    async with state["queue_lock"]:
+                        current = state["current_player"].copy()
+                        state["queue"].insert(0, current)
+                
+                # Önceki şarkıyı çal
+                async with state["queue_lock"]:
+                    state["queue"].insert(0, state["previous_song"].copy())
+                
+                if interaction.guild.voice_client:
+                    interaction.guild.voice_client.stop()  # Mevcut şarkıyı durdur
+                
+                await interaction.followup.send("⏮️ Önceki şarkıya dönülüyor", ephemeral=True)
+            else:
+                await interaction.followup.send("Önceki şarkı yok!", ephemeral=True)
+                
+            await self.update_player_message(interaction, state)
+            
+        except Exception as e:
+            print(f"Önceki şarkı hatası: {e}")
+            await interaction.followup.send("Bir hata oluştu.", ephemeral=True)
 
     async def button_queue_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)

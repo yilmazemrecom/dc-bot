@@ -210,7 +210,6 @@ Bot sürekli geliştirilmekte ve yeni özellikler eklenmektedir. Güncel komut l
 - Otomatik ses kanalından çıkma
 
 ### Kontrol Butonları
-- ⏮️ Önceki şarkı
 - ⏯️ Duraklat/Devam et
 - ⏭️ Sonraki şarkı
 - ⏹️ Durdur
