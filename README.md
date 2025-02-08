@@ -10,6 +10,9 @@ Bu Discord botu, çeşitli eğlence, ekonomi ve müzik özellikleri sunan çok a
 - Şarkı kontrolleri (durdur/devam/geç)
 - Otomatik ses kanalından çıkma
 - Kullanıcı dostu buton kontrolleri
+- Favori şarkı sistemi
+- Döngü modları (tek şarkı/liste)
+- Sıra karıştırma özelliği
 
 ### 💰 Ekonomi Sistemi
 - Sikke tabanlı ekonomi sistemi
@@ -66,6 +69,26 @@ Bu Discord botu, çeşitli eğlence, ekonomi ve müzik özellikleri sunan çok a
 - `/takimim` - Takım bilgilerini gösterir
 - `/lig` - Lig durumunu gösterir
 
+## 🎮 Komut Parametreleri
+
+### Oyun Komutları
+- `/zar <bahis> <tahmin>` - Bahis (min. 10), Tahmin (1-6)
+- `/yazitura <bahis> <secim>` - Bahis (min. 10), Seçim (Yazı/Tura)
+- `/rulet <bahis> <renk>` - Bahis (min. 10), Renk (Kırmızı/Siyah/Yeşil)
+
+### Müzik Komutları
+- `/cal <şarkı adı veya URL>` - Müzik çalar
+- Şarkı kontrolü için interaktif butonlar
+- `/siradakiler` - Sıradaki şarkıları gösterir
+
+### Ekonomi Komutları
+- `/btransfer <kullanici> <miktar>` - Miktar (min. 1)
+- `/duello <rakip> <bahis>` - Bahis (min. 10)
+
+### Takım Komutları
+- `/takimolustur <takim_adi> <yatirim>` - Yatırım (min. 1000)
+- `/macyap <bahis> [rakip]` - Bahis (min. 100)
+
 ## 🌐 Bağlantılar
 
 Website: [cayci.com.tr](https://cayci.com.tr)
@@ -76,7 +99,7 @@ Bot sürekli geliştirilmekte ve yeni özellikler eklenmektedir. Güncel komut l
 
 ## 🛠️ Kurulum
 
-1. Botu sunucunuza eklemek için: [Davet Linki](bot_davet_linki)
+1. Botu sunucunuza eklemek için: [Davet Linki](https://discord.com/invite/dSVRs26v5t)
 2. Varsayılan prefix: `/` (Slash Commands)
 3. Başlangıç bakiyesi: 100 sikke
 
@@ -175,4 +198,59 @@ Bot sürekli geliştirilmekte ve yeni özellikler eklenmektedir. Güncel komut l
 ## 📜 Kullanım Koşulları
 - Bot'u kullanarak [Kullanım Koşulları](https://caycibot.com.tr/)'nı kabul etmiş olursunuz
 - Haksız kullanım tespitinde hesabınız kara listeye alınabilir
+
+# Discord Müzik Botu
+
+## 🎵 Müzik Sistemi Özellikleri
+
+### Temel Özellikler
+- Çoklu sunucu desteği (her sunucu için ayrı çalma listesi)
+- YouTube müzik/video desteği
+- Sıra sistemi
+- Otomatik ses kanalından çıkma
+
+### Kontrol Butonları
+- ⏮️ Önceki şarkı
+- ⏯️ Duraklat/Devam et
+- ⏭️ Sonraki şarkı
+- ⏹️ Durdur
+- 📜 Sıra listesi
+- 🔀 Karıştır
+- 🔁 Döngü modu
+- ❤️ Favorilere ekle/çıkar
+
+### Döngü Modları
+- ➡️ Normal mod (döngü kapalı)
+- 🔂 Tek şarkı döngüsü
+- 🔁 Liste döngüsü
+
+### Favori Sistemi
+- `/favori` - Çalan şarkıyı favorilere ekler/çıkarır
+- `/favoriler` - Favori şarkıları listeler (sayfalı görünüm)
+- `/favorical <numara>` - Favori listesinden şarkı çalar
+- `/favorisil <numara>` - Favori listesinden şarkı siler
+- `/favoritümünüsil` - Tüm favori şarkıları siler
+
+### Hata Yönetimi
+- Ses kanalı bağlantı kontrolü
+- Otomatik yeniden bağlanma
+- Detaylı hata mesajları
+- Timeout kontrolü
+
+### Veritabanı
+- SQLite veritabanı desteği
+- Favori şarkıların kalıcı depolanması
+- Her sunucu için ayrı favori listesi
+
+### Kullanıcı Dostu Özellikler
+- Buton kontrolleri
+- Sayfalı liste görünümü
+- Kısa bilgi mesajları
+- Kolay navigasyon
+
+## 🔧 Teknik İyileştirmeler
+- Asenkron işlem desteği
+- Bellek optimizasyonu
+- Güvenli şarkı geçişleri
+- Kararlı çalma sistemi
 

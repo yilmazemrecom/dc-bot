@@ -6,6 +6,8 @@ from util import load_economy, save_economy, add_user_to_economy, load_bilmecele
 import aiosqlite
 import json
 import aiofiles
+from discord.ext import commands
+from discord import app_commands
 
 DATABASE = 'database/economy.db'
 
@@ -37,8 +39,15 @@ class Games(commands.Cog):
             embed = discord.Embed(title="Zaman Doldu", description=f"{interaction.user.mention}, Üzgünüm, zaman doldu. Doğru cevap: {cevap}", color=discord.Color.red())
             await interaction.followup.send(embed=embed)
 
-    @discord.app_commands.command(name="zar", description="Zar atar ve tahmininizi kontrol eder")
-    async def slash_zar(self, interaction: discord.Interaction, bahis: int, tahmin: int):
+    @discord.app_commands.command(name="zar")
+    @discord.app_commands.describe(
+        bahis="Yatırmak istediğiniz sikke miktarı (minimum 10)",
+        tahmin="Tahmin ettiğiniz sayı (1-6)",
+    )
+    async def slash_zar(self, interaction: discord.Interaction, 
+        bahis: app_commands.Range[int, 10, None], # minimum 10 sikke
+        tahmin: app_commands.Range[int, 1, 6]     # 1-6 arası
+    ):
         if bahis <= 0 or tahmin < 1 or tahmin > 6:
             embed = discord.Embed(title="Hata", description=f"{interaction.user.mention}, Geçerli bir bahis miktarı ve tahmin belirtmelisiniz.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed)
@@ -93,8 +102,22 @@ class Games(commands.Cog):
             embed = discord.Embed(title="Zaman Doldu", description=f"Üzgünüm {interaction.user.mention}, zaman doldu. Doğru cevap: {cevap}", color=discord.Color.red())
             await interaction.followup.send(embed=embed)
 
-    @discord.app_commands.command(name="rulet", description="Rulet oynar")
-    async def slash_rulet(self, interaction: discord.Interaction, bahis: int):
+    @discord.app_commands.command(name="rulet")
+    @discord.app_commands.describe(
+        bahis="Yatırmak istediğiniz sikke miktarı (minimum 10)",
+        renk="Bahis yapmak istediğiniz renk"
+    )
+    @discord.app_commands.choices(
+        renk=[
+            discord.app_commands.Choice(name="Kırmızı", value="kırmızı"),
+            discord.app_commands.Choice(name="Siyah", value="siyah"),
+            discord.app_commands.Choice(name="Yeşil", value="yeşil")
+        ]
+    )
+    async def slash_rulet(self, interaction: discord.Interaction,
+        bahis: app_commands.Range[int, 10, None],
+        renk: str
+    ):
         if bahis <= 0:
             embed = discord.Embed(title="Hata", description=f"{interaction.user.mention} Geçerli bir bahis miktarı belirtmelisiniz.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed)
@@ -122,8 +145,21 @@ class Games(commands.Cog):
         await save_economy(interaction.user.id, interaction.user.name, new_balance)
         await interaction.response.send_message(embed=embed)
 
-    @discord.app_commands.command(name="yazitura", description="Yazı tura oyunu oynar")
-    async def slash_yazitura(self, interaction: discord.Interaction, bahis: int, secim: str):
+    @discord.app_commands.command(name="yazitura")
+    @discord.app_commands.describe(
+        bahis="Yatırmak istediğiniz sikke miktarı (minimum 10)",
+        secim="Yazı mı Tura mı?"
+    )
+    @discord.app_commands.choices(
+        secim=[
+            discord.app_commands.Choice(name="Yazı", value="yazı"),
+            discord.app_commands.Choice(name="Tura", value="tura")
+        ]
+    )
+    async def slash_yazitura(self, interaction: discord.Interaction,
+        bahis: app_commands.Range[int, 10, None],
+        secim: str
+    ):
         if bahis <= 0:
             embed = discord.Embed(title="Hata", description=f"{interaction.user.mention} Geçerli bir bahis miktarı belirtmelisiniz.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed)

@@ -33,6 +33,16 @@ async def init_db():
                 son_mac_zamani TEXT
             )
         ''')
+        await db.execute('''
+            CREATE TABLE IF NOT EXISTS favorite_songs (
+                user_id TEXT,
+                guild_id TEXT,
+                song_title TEXT,
+                song_url TEXT,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, song_url)
+            )
+        ''')
         await db.commit()
 
 async def update_existing_table():

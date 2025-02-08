@@ -28,30 +28,37 @@ class Economy(commands.Cog):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="btransfer", description="Başka bir kullanıcıya bakiye transferi yapar")
-    async def slash_btransfer(self, interaction: discord.Interaction, user: discord.Member, amount: int):
+    @discord.app_commands.command(name="btransfer")
+    @discord.app_commands.describe(
+        kullanici="Sikke göndermek istediğiniz kullanıcı",
+        miktar="Göndermek istediğiniz sikke miktarı (minimum 1)"
+    )
+    async def slash_btransfer(self, interaction: discord.Interaction,
+        kullanici: discord.Member,
+        miktar: app_commands.Range[int, 1, None]
+    ):
         economy = await load_economy(str(interaction.user.id))
         embed = discord.Embed(color=discord.Color.red())
 
-        if not economy or economy[2] < amount:
+        if not economy or economy[2] < miktar:
             embed.title = "Yetersiz Bakiye"
             embed.description = f"{interaction.user.mention}, Yetersiz bakiye."
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        target_economy = await load_economy(str(user.id))
+        target_economy = await load_economy(str(kullanici.id))
         if not target_economy:
-            target_economy = (str(user.id), user.name, 0)
+            target_economy = (str(kullanici.id), kullanici.name, 0)
 
-        new_author_balance = economy[2] - amount
-        new_target_balance = target_economy[2] + amount
+        new_author_balance = economy[2] - miktar
+        new_target_balance = target_economy[2] + miktar
 
         await save_economy(interaction.user.id, interaction.user.name, new_author_balance)
-        await save_economy(user.id, user.name, new_target_balance)
+        await save_economy(kullanici.id, kullanici.name, new_target_balance)
 
         embed.color = discord.Color.green()
         embed.title = "Transfer Başarılı"
-        embed.description = f"{interaction.user.mention}, {amount} sikke, {user.name}'in hesabına aktarıldı."
+        embed.description = f"{interaction.user.mention}, {miktar} sikke, {kullanici.name}'in hesabına aktarıldı."
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @slash_btransfer.error

@@ -7,6 +7,8 @@ import aiofiles
 import datetime
 from util import load_economy, save_economy, add_user_to_economy
 from datetime import datetime, timedelta
+from typing import Optional
+from discord.app_commands import Range
 
 DATABASE = 'database/economy.db'
 WINNERS_FILE = 'json/lig_kazanan.json'
@@ -16,8 +18,15 @@ class TakimOyunu(commands.Cog):
         self.bot = bot
         self.reset_lig.start()
 
-    @discord.app_commands.command(name="takimolustur", description="Yeni bir takım oluşturur")
-    async def slash_takimolustur(self, interaction: discord.Interaction, takim_adi: str, miktari: int):
+    @discord.app_commands.command(name="takimolustur")
+    @discord.app_commands.describe(
+        takim_adi="Takımınızın adı",
+        yatirim="Başlangıç yatırım miktarı (minimum 1000 sikke)"
+    )
+    async def slash_takimolustur(self, interaction: discord.Interaction,
+        takim_adi: str,
+        yatirim: Range[int, 1000, None]
+    ):
         async with aiofiles.open('json/kufur_listesi.json', 'r', encoding='utf-8') as file:
             kufur_listesi_json = await file.read()
 
@@ -27,14 +36,14 @@ class TakimOyunu(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        if not takim_adi or miktari <= 0:
-            embed = discord.Embed(title="Hata", description="Lütfen geçerli bir takım adı ve miktar belirtin.", color=discord.Color.red())
+        if not takim_adi or yatirim < 1000:
+            embed = discord.Embed(title="Hata", description="Lütfen geçerli bir takım adı ve yatırım miktarı belirtin.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         economy = await add_user_to_economy(interaction.user.id, interaction.user.name)
         bakiye = economy[2]
-        if bakiye < miktari:
+        if bakiye < yatirim:
             embed = discord.Embed(title="Hata", description="Yeterli bakiyeniz yok.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
@@ -50,12 +59,12 @@ class TakimOyunu(commands.Cog):
             await db.execute('''
                 INSERT INTO takimlar (user_id, takim_adi, kaptan, miktari, kazanilan_mac, kaybedilen_mac)
                 VALUES (?, ?, ?, ?, 0, 0)
-            ''', (str(interaction.user.id), takim_adi, interaction.user.name, miktari))
+            ''', (str(interaction.user.id), takim_adi, interaction.user.name, yatirim, 0, 0))
             await db.commit()
 
-        new_balance = bakiye - miktari
+        new_balance = bakiye - yatirim
         await save_economy(interaction.user.id, interaction.user.name, new_balance)
-        embed = discord.Embed(title="Takım Oluşturuldu", description=f"{interaction.user.mention}, '{takim_adi}' adında yeni bir takım oluşturdunuz ve {miktari} sikke harcadınız.", color=discord.Color.green())
+        embed = discord.Embed(title="Takım Oluşturuldu", description=f"{interaction.user.mention}, '{takim_adi}' adında yeni bir takım oluşturdunuz ve {yatirim} sikke harcadınız.", color=discord.Color.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.app_commands.command(name="takimyatirim", description="Takıma yatırım yapar")
@@ -102,8 +111,15 @@ class TakimOyunu(commands.Cog):
         embed = discord.Embed(title="Yatırım Başarılı", description=f"{interaction.user.mention}, '{row[1]}' takımınıza {miktar} sikke yatırım yaptınız.", color=discord.Color.green())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @discord.app_commands.command(name="macyap", description="Takımınızla maç yapar")
-    async def slash_macyap(self, interaction: discord.Interaction, bahis: int):
+    @discord.app_commands.command(name="macyap")
+    @discord.app_commands.describe(
+        bahis="Maç bahis miktarı (minimum 100 sikke)",
+        rakip="Maç yapmak istediğiniz takım (opsiyonel)"
+    )
+    async def slash_macyap(self, interaction: discord.Interaction,
+        bahis: Range[int, 100, None],
+        rakip: Optional[discord.Member] = None
+    ):
         if bahis <= 1 or bahis >= 1001:
             embed = discord.Embed(title="Hata", description="Lütfen geçerli bir bahis miktarı belirtin. Bahis miktarı en az 2 ve en fazla 1000 olabilir.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)

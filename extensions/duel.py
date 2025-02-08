@@ -196,7 +196,7 @@ class DuelCog(commands.Cog):
         self.bot = bot
         
 
-    @discord.app_commands.command(name="duello", description="Bir kullanıcı ile düello başlat")
+    @discord.app_commands.command(name="pvp", description="Başka bir oyuncuyla düello yaparsınız")
     async def slash_duello(self, interaction: discord.Interaction, kullanıcı: discord.Member):
         active_duels = sum(1 for duel in duels.values() if interaction.user in (duel.player1, duel.player2))
         if active_duels >= MAX_ACTIVE_DUELS_PER_USER:
