@@ -74,3 +74,105 @@ Website: [cayci.com.tr](https://cayci.com.tr)
 
 Bot sürekli geliştirilmekte ve yeni özellikler eklenmektedir. Güncel komut listesi için `/komutlar` komutunu kullanabilirsiniz.
 
+## 🛠️ Kurulum
+
+1. Botu sunucunuza eklemek için: [Davet Linki](bot_davet_linki)
+2. Varsayılan prefix: `/` (Slash Commands)
+3. Başlangıç bakiyesi: 100 sikke
+
+## 🎯 Özellik Detayları
+
+### 💰 Ekonomi Sistemi Detayları
+- Başlangıç bakiyesi: 100 sikke
+- Minimum transfer miktarı: 1 sikke
+- Maksimum bahis: Mevcut bakiyeniz
+- Kazanç oranları:
+  - Quiz doğru cevap: +50 sikke
+  - Bilmece doğru cevap: +30 sikke
+  - Duello kazanma: Bahis miktarının 2 katı
+
+### 🎲 Oyun Detayları
+- Zar: 1-6 arası tahmin, doğru bilirseniz 6x kazanç
+- Yazı Tura: 2x kazanç
+- Rulet: 2x kazanç
+- Duello: Kazanan bahsin 2 katını alır
+
+### ⚽ Takım Sistemi Detayları
+- Minimum takım kurma maliyeti: 1000 sikke
+- Minimum maç bahsi: 100 sikke
+- Takım geliştirme sistemi:
+  - Her kazanılan maç: +10 güç puanı
+  - Her yatırım: Yatırım miktarının %1'i kadar güç puanı
+
+## 🤖 Bot İstatistikleri
+- Toplam Sunucu Sayısı: xxx
+- Toplam Kullanıcı Sayısı: xxx
+- Çalınan Toplam Şarkı: xxx
+- Oynanan Toplam Oyun: xxx
+
+## 🔒 Güvenlik
+- Tüm komutlar rate-limit korumalı
+- Ekonomi sistemi manipülasyon korumalı
+- Düzenli veritabanı yedeklemesi
+- SSL korumalı bağlantılar
+
+## 🆘 Destek
+- Destek Sunucusu ve Bug Bildirimi: [Discord Sunucusu](https://discord.com/invite/dSVRs26v5t)
+
+
+## 📊 Sürüm Geçmişi
+### v2.0.0 (Güncel)
+- Slash komut sistemine geçiş
+- Müzik sistemi yenilendi
+- Duello sistemi eklendi
+- Haber bildirimleri eklendi
+
+### v1.5.0
+- Takım sistemi eklendi
+- Ekonomi sistemi güncellendi
+- Yeni oyunlar eklendi
+
+## 🗺️ Yol Haritası
+- [ ] Seviye sistemi
+  - Mesaj ve ses aktivitelerine göre XP kazanma
+  - Seviye atladıkça sikke ödülü
+  - Seviye rozetleri
+  
+- [ ] Mini oyunlar
+  - Kelime oyunu (Bir harfle başlayan kelime bulma)
+  - Matematik yarışması
+  - Hafıza kartı oyunu
+  - Şans çarkı
+
+- [ ] Ekonomi geliştirmeleri
+  - Günlük ödül sistemi
+  - Haftalık görevler
+  - Market sistemi (Rol satın alma, özel eşyalar)
+
+
+- [ ] Moderasyon özellikleri
+  - Otomatik küfür engelleme
+  - Spam koruması
+  - Davet takip sistemi
+  - Hoşgeldin mesajı özelleştirme
+  - Oto-rol sistemi
+
+
+- [ ] Eğlence özellikleri
+  - Emoji ile tepki-rol sistemi
+  - Doğum günü hatırlatıcı
+  - Rastgele meme/gif paylaşımı
+  - Özel sunucu emojileri oluşturma
+
+- [ ] Kullanıcı deneyimi
+  - Türkçe dil dosyasının geliştirilmesi
+  - Komut açıklamalarının detaylandırılması
+  - Yardım menüsünün kategorilere ayrılması
+  - Komut kısayolları
+
+
+
+## 📜 Kullanım Koşulları
+- Bot'u kullanarak [Kullanım Koşulları](https://caycibot.com.tr/)'nı kabul etmiş olursunuz
+- Haksız kullanım tespitinde hesabınız kara listeye alınabilir
+
