@@ -29,7 +29,8 @@ class HaberBildirim(commands.Cog):
 
     def cog_unload(self):
         self.check_telegram_channel.cancel()
-        self.conn.close()
+        if self.conn:
+            asyncio.create_task(self.conn.close())
         print("Haberbildirim cog unloaded.")
 
     @discord.app_commands.command(name="haberbildirimac", description="Belirtilen kanalda Telegram bildirimlerini açar")

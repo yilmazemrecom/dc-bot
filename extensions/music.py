@@ -404,7 +404,14 @@ class Music(commands.Cog):
                 view = self.get_control_buttons(interaction)
                 await state["current_message"].edit(embed=embed, view=view)
 
-
+    def cog_unload(self):
+        # Müzik çalma işlemlerini durdur
+        for vc in self.bot.voice_clients:
+            self.bot.loop.create_task(vc.disconnect(force=True))
+        
+        # Varsa queue'ları temizle
+        if hasattr(self, 'queue'):
+            self.queue.clear()
 
 async def setup(bot):
     await bot.add_cog(Music(bot))

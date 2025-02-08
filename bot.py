@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands, tasks
 import aiosqlite
 import os
+import asyncio
 from util import init_db, load_economy, save_economy, add_user_to_economy, update_user_server, update_existing_table
 
 PREFIX = '!'
@@ -28,13 +29,16 @@ async def on_ready():
 
 @tasks.loop(minutes=10) 
 async def update_server_count():
-    async with aiosqlite.connect('database/economy.db') as db:
-        async with db.execute('SELECT SUM(sunucu_uye_sayisi) FROM sunucular') as cursor:
-            row = await cursor.fetchone()
-            total_users = row[0] if row[0] is not None else 0
+    try:
+        async with aiosqlite.connect('database/economy.db') as db:
+            async with db.execute('SELECT SUM(sunucu_uye_sayisi) FROM sunucular') as cursor:
+                row = await cursor.fetchone()
+                total_users = row[0] if row[0] is not None else 0
 
-    status = f"{total_users} kullanıcı | /komutlar "
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening , name=status))
+        status = f"{total_users} kullanıcı | /komutlar "
+        await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening , name=status))
+    except Exception as e:
+        print(f"Sunucu sayısı güncelleme hatası: {e}")
 
 
 
@@ -129,11 +133,95 @@ async def load_extensions():
     for extension in ['extensions.responses', 'extensions.games', 'extensions.economy', 'extensions.takimoyunu', 'extensions.music', 'extensions.oyunbildirim', 'extensions.duel', 'extensions.haberbildirim', 'extensions.reminder', ]:
         await bot.load_extension(extension)
 
+async def cleanup():
+    print("Temizlik işlemleri başlatılıyor...")
+    
+    # Extension'ları kapat
+    print("Extension'lar kapatılıyor...")
+    extensions = list(bot.extensions.keys())
+    for extension in extensions:
+        try:
+            await bot.unload_extension(extension)
+            print(f"{extension} kapatıldı")
+        except Exception as e:
+            print(f"{extension} kapatılırken hata: {e}")
+
+    # Task loop'ları zorla durdur
+    print("Task loop'lar durduruluyor...")
+    try:
+        update_server_info.stop()
+        update_server_count.stop()
+    except Exception as e:
+        print(f"Task loop durdurma hatası: {e}")
+
+    # Tüm ses bağlantılarını kapat
+    print("Ses bağlantıları kapatılıyor...")
+    try:
+        for vc in bot.voice_clients:
+            try:
+                await asyncio.wait_for(vc.disconnect(force=True), timeout=1.0)
+            except:
+                pass
+    except Exception as e:
+        print(f"Ses bağlantıları kapatma hatası: {e}")
+
+    # Bot'u kapat
+    print("Bot kapatılıyor...")
+    try:
+        await bot.close()
+    except Exception as e:
+        print(f"Bot kapatma hatası: {e}")
+
+    print("Temizlik işlemleri tamamlandı.")
+    
+    # Zorla çıkış yap
+    import os, signal
+    os.kill(os.getpid(), signal.SIGTERM)
+
+def force_exit():
+    import os, sys
+    try:
+        sys.exit(0)
+    except:
+        os._exit(0)
+
 async def main():
-    async with bot:
-        await load_extensions()
-        await bot.start(TOKEN)
+    try:
+        async with bot:
+            await load_extensions()
+            await bot.start(TOKEN)
+    except asyncio.CancelledError:
+        print("Bot kapatılıyor...")
+    except Exception as e:
+        print(f"Beklenmeyen hata: {e}")
+    finally:
+        await cleanup()
+        
+        # Son bir kez daha kalan görevleri kontrol et
+        remaining = [t for t in asyncio.all_tasks() if not t.done() and t is not asyncio.current_task()]
+        if remaining:
+            print(f"Kalan {len(remaining)} görev zorla kapatılıyor...")
+            for task in remaining:
+                task.cancel()
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        print("\nBot kapatma sinyali alındı...")
+        try:
+            loop.run_until_complete(cleanup())
+        except:
+            pass
+        finally:
+            loop.stop()
+            loop.close()
+            print("Bot güvenli bir şekilde kapatıldı.")
+            # Zorla çıkış yap
+            force_exit()
+    except Exception as e:
+        print(f"Beklenmeyen hata: {e}")
+        loop.close()

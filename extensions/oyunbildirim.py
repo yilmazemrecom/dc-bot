@@ -49,7 +49,8 @@ class Oyunbildirim(commands.Cog):
         self.check_deals.cancel()
         self.clear_old_deals.cancel()
         self.daily_json_reset.cancel()
-        self.conn.close()
+        if self.conn:
+            asyncio.create_task(self.conn.close())
 
     async def cog_check(self, ctx):
         return ctx.author.guild_permissions.administrator

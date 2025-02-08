@@ -112,6 +112,11 @@ class Economy(commands.Cog):
             embed = discord.Embed(title="Hata", description="Döviz kurunu alırken bir hata oluştu.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    async def cog_unload(self):
+        # Veritabanı bağlantılarını kapat
+        if hasattr(self, 'db'):
+            await self.db.close()
+
 async def setup(bot):
     await bot.add_cog(Economy(bot))
 
