@@ -1,57 +1,76 @@
 # Çaycı
 
-Bu Discord botu, çeşitli eğlence ve ekonomi komutları sunar. Bot, Discord sunucunuza katıldığında çeşitli mesajlar gönderir ve kullanıcılarla etkileşimde bulunur.
+Bu Discord botu, çeşitli eğlence, ekonomi ve müzik özellikleri sunan çok amaçlı bir Discord botudur. Slash komut sistemi ile modern ve kullanıcı dostu bir arayüz sunar.
 
-## Özellikler
+## 🎯 Özellikler
 
-- Kullanıcıların bakiyelerini yönetir ve çeşitli oyunlar oynamalarına olanak tanır.
-- Döviz kuru bilgisini sağlar.
-- Bilmece ve quiz soruları sorar.
-- Zar ve yazı-tura oyunları oynatır.
-- Adam asmaca ve rulet oyunları sunar.
-- Takım oluşturma, yatırım yapma ve maç yapma özellikleri sağlar.
-- Selamlama ve basit sohbet yanıtları içerir.
+### 🎵 Müzik Sistemi
+- YouTube üzerinden müzik çalma
+- Sıra sistemi ve playlist desteği
+- Şarkı kontrolleri (durdur/devam/geç)
+- Otomatik ses kanalından çıkma
+- Kullanıcı dostu buton kontrolleri
 
-## Komutlar
+### 💰 Ekonomi Sistemi
+- Sikke tabanlı ekonomi sistemi
+- Kullanıcılar arası transfer
+- Global ve sunucu bazlı sıralama
+- Döviz kuru bilgisi (TL/USD)
+
+### 🎮 Eğlence Komutları
+- Bilmece ve quiz sistemi
+- Zar ve yazı-tura oyunları
+- Rulet sistemi
+- Duello sistemi
+- Takım kurma ve maç yapma
+
+### 📢 Bildirim Sistemleri
+- Oyun indirimi bildirimleri
+- Haber bildirimleri
+- Kişisel hatırlatıcı sistemi
+
+## 🎮 Komutlar
 
 ### Genel Komutlar
+- `/komutlar` - Tüm komutları listeler
+- `/oyunbildirimac <kanal>` - Oyun indirim bildirimlerini açar
+- `/haberbildirimac <kanal>` - Haber bildirimlerini açar
+- `/hatirlatici_ekle <içerik> <gün> <saat> <dakika>` - Hatırlatıcı ekler
+- `/hatirlaticilar` - Hatırlatıcıları listeler
+- `/hatirlatici_sil <id>` - Hatırlatıcı siler
 
-- `!komutlar`: Tüm komutları listeler
-- `çaycı`: Çay mı istediğini sorar
-- `çay`: Çay getirir
-- `dolar`: 1 doların kaç TL olduğunu gösterir
-- `!bakiye`: Bakiyenizi gösterir
-- `!btransfer <kullanıcı> <miktar>`: Belirtilen kullanıcıya belirtilen miktarda sikke gönderir
-- `!siralama`: En zengin 20 kişiyi sıralar
-- `!sunucu_sikke_siralaması`: Sunucunuzdaki ilk 20'deki sikke krallarını listeler.
-- `!oyunbilayar <#kanal adı>`: Steam ve Epic games oyun indirimleri paylaşır.
-- `!hatırlatici_ekle <içerik> <gün> <saat> <dakika>`: Hatırlatıcı ekler, zamanı gelince özelden hatırlatır.
-- `!hatirlaticilar`: Hatırlatıcıları listeler
-- `!hatırlatici_sil <id>`: Hatırlatıcı siler
+### Müzik Komutları
+- `/cal <şarkı adı veya URL>` - Müzik çalar
+- Şarkı kontrolü için interaktif butonlar
+- `/siradakiler` - Sıradaki şarkıları gösterir
 
+### Ekonomi Komutları
+- `/bakiye` - Bakiyenizi gösterir
+- `/btransfer <kişi> <tutar>` - Para transferi yapar
+- `/siralama` - En zengin 20 kişiyi listeler
+- `/sunucu_sikke_siralamasi` - Sunucudaki sıralamayı gösterir
+- `/dolar` - Güncel dolar kurunu gösterir
 
 ### Eğlence Komutları
-- `!bilmece`: Rastgele bir bilmece sorar
-- `!quiz`: Rastgele bir quiz sorusu sorar
-- `!zar <bahis> <tahmin>`: Zar oyunu oynar
-- `!yazitura <bahis> <seçim>`: Yazı-tura oyunu oynar
-- `!asmaca`: Adam asmaca oyunu oynar
-- `!rulet <bahis>`: Rulet oyunu oynar
-
+- `/bilmece` - Bilmece sorar
+- `/quiz` - Quiz sorusu sorar
+- `/zar <bahis> <tahmin>` - Zar oyunu
+- `/yazitura <bahis> <yazı/tura>` - Yazı tura oyunu
+- `/rulet <bahis>` - Rulet oyunu
+- `/duello <kişi>` - Duello başlatır
 
 ### Takım Oyunu Komutları
+- `/takimolustur <takım adı> <yatırım>` - Yeni takım oluşturur
+- `/takimyatirim <yatırım>` - Takıma yatırım yapar
+- `/macyap <bahis>` - Takımınızla maç yapar
+- `/takimim` - Takım bilgilerini gösterir
+- `/lig` - Lig durumunu gösterir
 
-- `!takimolustur <takim_adi> <yatirim>`: Yeni bir takım oluşturur
-- `!takimyatirim <yatirim>`: Takıma yatırım yapar
-- `!macyap <bahis>`: Takımınızla maç yapar
-- `!takimim`: Takımınızı gösterir
+## 🌐 Bağlantılar
 
+Website: [cayci.com.tr](https://cayci.com.tr)
 
-## Müzik Komutları
+## 📝 Not
 
-- `!çal <şarkı adı veya URL>`: müzik çalar
-- `!durdur`: şarkıyı durdurur
-- `!devam`: şarkıyı devam ettirir.
-- `!siradakiler`: sıraya eklenen şarkıları gösterir
-- `!gec`: sıradaki şarkıya geçer.
+Bot sürekli geliştirilmekte ve yeni özellikler eklenmektedir. Güncel komut listesi için `/komutlar` komutunu kullanabilirsiniz.
 
