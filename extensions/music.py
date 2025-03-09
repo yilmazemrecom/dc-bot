@@ -288,6 +288,12 @@ class Music(commands.Cog):
 
     async def button_queue_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
+        
+        # Ses kanalı kontrolü
+        if not interaction.guild.voice_client:
+            await interaction.response.send_message("Bot bir ses kanalında değil!", ephemeral=True)
+            return
+            
         if not state["queue"]:
             await interaction.response.send_message("Sırada şarkı yok!", ephemeral=True)
             return
@@ -314,7 +320,6 @@ class Music(commands.Cog):
             embed.add_field(name="Sıradaki Şarkılar", value=queue_text, inline=False)
             
         await interaction.response.send_message(embed=embed, ephemeral=True)
-        await self.update_player_message(interaction, state)
 
     async def button_shuffle_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -482,25 +487,41 @@ class Music(commands.Cog):
 
         try:
             entries = await self.YTDLSource.from_url(sarki, loop=self.bot.loop, stream=True)
-            if entries:
+            if entries and len(entries) > 0:  # Geçerli şarkı var mı kontrol et
                 async with state["queue_lock"]:
                     state["queue"].extend(entries)
                 if not state["is_playing"]:
                     await self.prepare_next_song(interaction)
                 embed = discord.Embed(title="Şarkılar Kuyruğa Eklendi", description=f"{len(entries)} şarkı kuyruğa eklendi.", color=discord.Color.blue())
-                loadingmess= await loading_message.edit(embed=embed)
+                loadingmess = await interaction.followup.send(embed=embed)
                 await loadingmess.delete(delay=10)
             else:
-                await interaction.followup.send("Playlistte geçerli şarkı bulunamadı.", ephemeral=True)
-                state["queue"].clear()
-                state["is_playing"] = False
-                await state["current_message"].delete()
-                state["current_message"] = None
-                await interaction.guild.voice_client.disconnect()
+                # Şarkı bulunamadı veya yüklenemedi
+                await interaction.followup.send("Şarkı bulunamadı veya yüklenemedi. Lütfen başka bir şarkı deneyin.", ephemeral=True)
+                # Eğer bot ses kanalındaysa ve başka şarkı çalmıyorsa kanaldan çık
+                if interaction.guild.voice_client and not state["is_playing"]:
+                    await interaction.guild.voice_client.disconnect()
+                    state["queue"].clear()
+                    if state["current_message"]:
+                        try:
+                            await state["current_message"].delete()
+                        except:
+                            pass
+                        state["current_message"] = None
 
         except Exception as e:
             print(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
-            return
+            await interaction.followup.send(f"Şarkı yüklenirken bir hata oluştu: {str(e)[:1000]}", ephemeral=True)
+            # Hata durumunda temizlik yap
+            if interaction.guild.voice_client and not state["is_playing"]:
+                await interaction.guild.voice_client.disconnect()
+                state["queue"].clear()
+                if state["current_message"]:
+                    try:
+                        await state["current_message"].delete()
+                    except:
+                        pass
+                    state["current_message"] = None
 
     def get_control_buttons(self, interaction):
         view = discord.ui.View(timeout=600)
@@ -1103,6 +1124,8 @@ class Music(commands.Cog):
             channel = interaction.user.voice.channel
             if interaction.guild.voice_client is None:
                 await channel.connect()
+                state = self.get_guild_state(interaction.guild.id)
+                state["caller"] = interaction.user  # Caller'ı ayarla
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(
                     f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). "
@@ -1138,26 +1161,35 @@ class Music(commands.Cog):
 
             if songs_added > 0:
                 if not state["is_playing"]:
+                    # Şarkı çalmaya başlamadan önce state'i güncelle
+                    state["is_playing"] = True  # Bu satırı ekledik
                     await self.prepare_next_song(interaction)
-                
-                embed = discord.Embed(
-                    title="Favoriler Eklendi",
-                    description=f"✅ {songs_added} favori şarkı sıraya eklendi!",
-                    color=discord.Color.green()
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                else:
+                    embed = discord.Embed(
+                        title="Favoriler Eklendi",
+                        description=f"✅ {songs_added} favori şarkı sıraya eklendi!",
+                        color=discord.Color.green()
+                    )
+                    await interaction.followup.send(embed=embed, ephemeral=True)
             else:
                 await interaction.followup.send(
                     "Şarkılar eklenirken bir sorun oluştu.", 
                     ephemeral=True
                 )
+                # Eğer hiç şarkı eklenemezse ve bot çalmıyorsa kanaldan çık
+                if not state["is_playing"] and interaction.guild.voice_client:
+                    await interaction.guild.voice_client.disconnect()
 
         except Exception as e:
             print(f"Favori şarkı listesi çalma hatası: {e}")
             await interaction.followup.send(
-                "Şarkılar eklenirken bir hata oluştu.", 
+                f"Şarkılar eklenirken bir hata oluştu: {str(e)[:1000]}", 
                 ephemeral=True
             )
+            # Hata durumunda temizlik yap
+            if not state["is_playing"] and interaction.guild.voice_client:
+                await interaction.guild.voice_client.disconnect()
+                state["queue"].clear()
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
