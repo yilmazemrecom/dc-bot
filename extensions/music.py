@@ -42,7 +42,7 @@ class Music(commands.Cog):
         'logtostderr': False,
         'quiet': True,
         'no_warnings': True,
-        'default_search': 'auto',
+        'default_search': 'ytsearch',
         'source_address': '0.0.0.0',
         # Eğer tam meta veriye ihtiyaç duyuluyorsa extract_flat'i kapatabilirsiniz:
         'extract_flat': True  
