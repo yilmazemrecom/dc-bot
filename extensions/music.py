@@ -15,7 +15,8 @@ class Music(commands.Cog):
         self.bot = bot
         self.guild_states = {}
         self.check_voice_channel.start()
-        
+
+
     def get_guild_state(self, guild_id):
         if guild_id not in self.guild_states:
             self.guild_states[guild_id] = {
@@ -24,13 +25,10 @@ class Music(commands.Cog):
                 "is_playing": False,
                 "queue_lock": Lock(),
                 "caller": None,
-                "current_message": None,
-                "favorites": [],
-                "loop": "off"  # "off", "single", "queue"
+                "current_message": None
             }
         return self.guild_states[guild_id]
 
-    # Kütüphanenin hata raporlama mesajını devre dışı bırakıyoruz
     youtube_dl.utils.bug_reports_message = lambda: ''
 
     ytdl_format_options = {
@@ -42,10 +40,9 @@ class Music(commands.Cog):
         'logtostderr': False,
         'quiet': True,
         'no_warnings': True,
-        'default_search': 'ytsearch',
+        'default_search': 'auto',
         'source_address': '0.0.0.0',
-        # Eğer tam meta veriye ihtiyaç duyuluyorsa extract_flat'i kapatabilirsiniz:
-        'extract_flat': True  
+        'extract_flat': 'in_playlist'
     }
 
     ffmpeg_options = {
@@ -66,33 +63,17 @@ class Music(commands.Cog):
         @classmethod
         async def from_url(cls, url, *, loop=None, stream=False):
             loop = loop or asyncio.get_event_loop()
-            try:
-                # Minimal verileri çekiyoruz
-                data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(url, download=not stream))
-            except Exception as e:
-                print(f"Playlist extraction error: {e}")
-                return []
+            data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(url, download=not stream))
+
             if not data:
-                return []
+                return None
+
             if 'entries' in data:
                 entries = data['entries']
-                valid_entries = []
-                for entry in entries:
-                    if entry is None:
-                        continue
-                    # Minimal verilerde id ve title bulunabilir
-                    if entry.get('id') and entry.get('title'):
-                        # Tam URL oluşturmak için youtube link formatını kullanabilirsiniz
-                        entry['url'] = f"https://www.youtube.com/watch?v={entry['id']}"
-                        valid_entries.append(entry)
-                return valid_entries
+                entries = [entry for entry in entries if entry and entry.get('url')]
+                return entries
             else:
-                if data.get('id') and data.get('title'):
-                    data['url'] = f"https://www.youtube.com/watch?v={data['id']}"
-                    return [data]
-                else:
-                    return []
-
+                return [data]
 
         @classmethod
         async def create_source(cls, entry, *, loop=None):
@@ -106,14 +87,12 @@ class Music(commands.Cog):
                 else:
                     raise Exception(f"Unable to extract info for URL: {entry['url']}")
             except youtube_dl.utils.DownloadError as e:
-                # Eğer hata mesajında 403 veya engelleme ile ilgili ibare varsa şarkıyı atlıyoruz
-                error_str = str(e)
-                print(f"Hata yakalandı: {error_str}")
-                if "403" in error_str or "unavailable" in error_str or "MESAM / MSG CS" in error_str:
-                    print(f"Skipping blocked or expired video: {entry['url']}")
-                    return None
+                print(f"Hata yakalandı: {e}")
+                if "MESAM / MSG CS" in str(e) or "unavailable" in str(e):
+                    print(f"Skipping blocked video: {entry['url']}")
+                    return None  
                 else:
-                    raise
+                    raise 
 
     async def play_next(self, interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -124,23 +103,15 @@ class Music(commands.Cog):
                 source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
                 if source:
                     view = self.get_control_buttons(interaction)
-                    interaction.guild.voice_client.play(
-                        source,
-                        after=lambda e: self.bot.loop.create_task(self.play_next_after_callback(interaction))
-                    )
-                    embed = discord.Embed(
-                        title="Şu anda Çalan Şarkı",
-                        description=state["current_player"]['title'],
-                        color=discord.Color.green()
-                    )
+                    interaction.guild.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next_after_callback(interaction), self.bot.loop))
+                    embed = discord.Embed(title="Şu anda Çalan Şarkı", description=state["current_player"]['title'], color=discord.Color.green())
                     embed.set_thumbnail(url=source.thumbnail)
                     if state["current_message"]:
                         await state["current_message"].edit(embed=embed, view=view)
                     else:
                         state["current_message"] = await interaction.channel.send(embed=embed, view=view)
                 else:
-                    # Eğer kaynak alınamadıysa o şarkıyı atlayıp sonraki şarkıya geçiyoruz
-                    await self.play_next(interaction)
+                    await self.prepare_next_song(interaction)
         else:
             state["is_playing"] = False
             await interaction.guild.voice_client.disconnect()
@@ -149,140 +120,7 @@ class Music(commands.Cog):
                 state["current_message"] = None
 
     async def play_next_after_callback(self, interaction):
-        state = self.get_guild_state(interaction.guild.id)
-        try:
-            if state["current_player"]:
-                state["previous_song"] = state["current_player"].copy()
-
-            if state["current_player"]:
-                if state["loop"] == "single":
-                    async with state["queue_lock"]:
-                        current_song = state["current_player"].copy()
-                        state["queue"].insert(0, current_song)
-                elif state["loop"] == "queue":
-                    async with state["queue_lock"]:
-                        current_song = state["current_player"].copy()
-                        state["queue"].append(current_song)
-            
-            if not state["queue"] and state["loop"] == "queue" and state.get("previous_song"):
-                async with state["queue_lock"]:
-                    state["queue"].append(state["previous_song"].copy())
-            
-            if not state["queue"] and interaction.guild.voice_client:
-                state["is_playing"] = False
-                await interaction.guild.voice_client.disconnect()
-                if state["current_message"]:
-                    try:
-                        end_embed = discord.Embed(
-                            title="Müzik Bitti",
-                            description="Çalma listesi sona erdi.",
-                            color=discord.Color.blue()
-                        )
-                        await state["current_message"].edit(embed=end_embed, view=None)
-                    except:
-                        pass
-                return
-            
-            await self.prepare_next_song(interaction)
-
-        except Exception as e:
-            print(f"Play next callback hatası: {e}")
-            if interaction.guild.voice_client:
-                await interaction.guild.voice_client.disconnect()
-
-    async def prepare_next_song(self, interaction):
-        state = self.get_guild_state(interaction.guild.id)
-        async with state["queue_lock"]:
-            try:
-                if not interaction.guild.voice_client:
-                    try:
-                        channel = interaction.user.voice.channel
-                        await channel.connect()
-                    except:
-                        print("Ses kanalına bağlanılamadı")
-                        state["is_playing"] = False
-                        return
-
-                while state["queue"]:
-                    next_song = state["queue"].pop(0)
-                    if not next_song:
-                        continue
-                    source = await self.YTDLSource.create_source(next_song, loop=self.bot.loop)
-                    if source and interaction.guild.voice_client:
-                        state["current_player"] = next_song
-                        interaction.guild.voice_client.play(
-                            source,
-                            after=lambda e: self.bot.loop.create_task(self.play_next_after_callback(interaction))
-                        )
-                        state["is_playing"] = True
-                        embed = discord.Embed(
-                            title="🎵 Şimdi Çalıyor",
-                            description=f"[{next_song['title']}]({next_song['url']})",
-                            color=discord.Color.blue()
-                        )
-                        if 'thumbnail' in next_song:
-                            embed.set_thumbnail(url=next_song['thumbnail'])
-                        view = View(timeout=None)
-                        buttons = [
-                            ("⏮️", "previous", discord.ButtonStyle.primary, self.button_previous_callback),
-                            ("⏯️", "pause", discord.ButtonStyle.primary, self.button_pause_callback),
-                            ("⏭️", "skip", discord.ButtonStyle.primary, self.button_skip_callback),
-                            ("⏹️", "stop", discord.ButtonStyle.danger, self.button_stop_callback),
-                            ("📜", "queue", discord.ButtonStyle.secondary, self.button_queue_callback),
-                            ("🔀", "shuffle", discord.ButtonStyle.secondary, self.button_shuffle_callback),
-                            ("🔁", "loop", discord.ButtonStyle.secondary, self.button_loop_callback),
-                            ("❤️", "favorite", discord.ButtonStyle.success, self.button_favorite_callback)
-                        ]
-                        for emoji, custom_id, style, callback in buttons:
-                            button = Button(style=style, emoji=emoji, custom_id=custom_id)
-                            # Lambda fonksiyon içinde callback'i çağırıyoruz
-                            button.callback = lambda i, cb=callback: cb(i)
-                            view.add_item(button)
-                        
-                        try:
-                            if state["current_message"]:
-                                await state["current_message"].edit(embed=embed, view=view)
-                            else:
-                                state["current_message"] = await interaction.followup.send(embed=embed, view=view)
-                        except discord.NotFound:
-                            state["current_message"] = await interaction.followup.send(embed=embed, view=view)
-                        break
-                else:
-                    state["is_playing"] = False
-                    if interaction.guild.voice_client:
-                        await interaction.guild.voice_client.disconnect()
-                    
-            except Exception as e:
-                print(f"Şarkı hazırlama hatası: {e}")
-                state["is_playing"] = False
-                if interaction.guild.voice_client:
-                    await interaction.guild.voice_client.disconnect()
-                try:
-                    await interaction.followup.send("Şarkı çalınırken bir hata oluştu.", ephemeral=True)
-                except:
-                    pass
-
-    # Buton callback fonksiyonları
-    async def button_previous_callback(self, interaction: discord.Interaction):
-        state = self.get_guild_state(interaction.guild.id)
-        try:
-            await interaction.response.defer(ephemeral=True)
-            if state.get("previous_song"):
-                if state["current_player"]:
-                    async with state["queue_lock"]:
-                        current = state["current_player"].copy()
-                        state["queue"].insert(0, current)
-                async with state["queue_lock"]:
-                    state["queue"].insert(0, state["previous_song"].copy())
-                if interaction.guild.voice_client:
-                    interaction.guild.voice_client.stop()
-                await interaction.followup.send("⏮️ Önceki şarkıya dönülüyor", ephemeral=True)
-            else:
-                await interaction.followup.send("Önceki şarkı yok!", ephemeral=True)
-            await self.update_player_message(interaction, state)
-        except Exception as e:
-            print(f"Önceki şarkı hatası: {e}")
-            await interaction.followup.send("Bir hata oluştu.", ephemeral=True)
+        await self.play_next(interaction)
 
     async def button_queue_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -304,29 +142,6 @@ class Music(commands.Cog):
         if queue_text:
             embed.add_field(name="Sıradaki Şarkılar", value=queue_text, inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    async def button_shuffle_callback(self, interaction: discord.Interaction):
-        state = self.get_guild_state(interaction.guild.id)
-        if state["queue"]:
-            random.shuffle(state["queue"])
-            await interaction.response.send_message("🔀 Çalma listesi karıştırıldı", ephemeral=True)
-        else:
-            await interaction.response.send_message("Sırada şarkı yok!", ephemeral=True)
-        await self.update_player_message(interaction, state)
-
-    async def button_loop_callback(self, interaction: discord.Interaction):
-        state = self.get_guild_state(interaction.guild.id)
-        if state["loop"] == "off":
-            state["loop"] = "single"
-            status = "🔂 Tek şarkı döngüsü açık"
-        elif state["loop"] == "single":
-            state["loop"] = "queue"
-            status = "🔁 Çalma listesi döngüsü açık"
-        else:
-            state["loop"] = "off"
-            status = "➡️ Döngü kapalı"
-        await interaction.response.send_message(status, ephemeral=True)
-        await self.update_player_message(interaction, state)
 
     async def button_pause_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -381,9 +196,7 @@ class Music(commands.Cog):
             if 'thumbnail' in current_song:
                 embed.set_thumbnail(url=current_song['thumbnail'])
             view = View(timeout=None)
-            previous_button = Button(style=discord.ButtonStyle.primary, emoji="⏮️", custom_id="previous")
-            previous_button.callback = lambda i: self.button_previous_callback(i)
-            view.add_item(previous_button)
+
             pause_button = Button(style=discord.ButtonStyle.primary, emoji="⏯️", custom_id="pause")
             pause_button.callback = lambda i: self.button_pause_callback(i)
             view.add_item(pause_button)
@@ -396,12 +209,6 @@ class Music(commands.Cog):
             queue_button = Button(style=discord.ButtonStyle.secondary, emoji="📜", custom_id="queue")
             queue_button.callback = lambda i: self.button_queue_callback(i)
             view.add_item(queue_button)
-            shuffle_button = Button(style=discord.ButtonStyle.secondary, emoji="🔀", custom_id="shuffle")
-            shuffle_button.callback = lambda i: self.button_shuffle_callback(i)
-            view.add_item(shuffle_button)
-            loop_button = Button(style=discord.ButtonStyle.secondary, emoji="🔁", custom_id="loop")
-            loop_button.callback = lambda i: self.button_loop_callback(i)
-            view.add_item(loop_button)
             favorite_button = Button(style=discord.ButtonStyle.success, emoji="❤️", custom_id="favorite")
             favorite_button.callback = lambda i: self.button_favorite_callback(i)
             view.add_item(favorite_button)
@@ -414,7 +221,23 @@ class Music(commands.Cog):
             except:
                 pass
 
-    @discord.app_commands.command(name="cal")
+
+
+    async def prepare_next_song(self, interaction):
+        state = self.get_guild_state(interaction.guild.id)
+        async with state["queue_lock"]:
+            while state["queue"]:
+                next_song = state["queue"].pop(0)
+                source = await self.YTDLSource.create_source(next_song, loop=self.bot.loop)
+                if source:
+                    state["queue"].insert(0, next_song)  # Re-add the valid song to the queue
+                    state["is_playing"] = True
+                    await self.play_next(interaction)
+                    break
+            else:
+                state["is_playing"] = False
+
+    @discord.app_commands.command(name="cal", description="Şarkı çalar")
     @discord.app_commands.describe(sarki="Şarkı adı veya URL (Sadece YouTube linki giriniz)")
     async def slash_cal(self, interaction: discord.Interaction, sarki: str):
         state = self.get_guild_state(interaction.guild.id)
@@ -424,165 +247,65 @@ class Music(commands.Cog):
                 await channel.connect()
                 state["caller"] = interaction.user
             elif interaction.guild.voice_client.channel != channel:
-                await interaction.response.send_message(
-                    f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.",
-                    ephemeral=True
-                )
+                await interaction.response.send_message(f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", ephemeral=True)
                 return
         except AttributeError:
             await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
             return
 
-        # Yükleniyor mesajı gönderiliyor
-        loading_message = await interaction.response.send_message("Playlist yükleniyor, lütfen bekleyin...")
+        embed = discord.Embed(title="Şarkı Yükleniyor", description="Lütfen bekleyin...", color=discord.Color.blue())
+        await interaction.response.send_message(embed=embed)
+        loading_message = await interaction.original_response()
+        await loading_message.delete(delay=10)
 
         try:
-            # Playlist verileri çekiliyor
             entries = await self.YTDLSource.from_url(sarki, loop=self.bot.loop, stream=True)
-            if entries and len(entries) > 0:
+            if entries:
                 async with state["queue_lock"]:
                     state["queue"].extend(entries)
                 if not state["is_playing"]:
                     await self.prepare_next_song(interaction)
-                # Yükleme tamamlandığında mesaj güncelleniyor
-                await interaction.followup.send(f"Playlist tamamlandı: {len(entries)} şarkı kuyruğa eklendi.", ephemeral=True)
+                embed = discord.Embed(title="Şarkılar Kuyruğa Eklendi", description=f"{len(entries)} şarkı kuyruğa eklendi.", color=discord.Color.blue())
+                loadingmess= await loading_message.edit(embed=embed)
+                await loadingmess.delete(delay=10)
             else:
-                await interaction.followup.send("Playlist'te geçerli şarkı bulunamadı veya yüklenemedi. Lütfen başka bir playlist deneyin.", ephemeral=True)
-                if interaction.guild.voice_client and not state["is_playing"]:
-                    await interaction.guild.voice_client.disconnect()
-                    state["queue"].clear()
-                    if state["current_message"]:
-                        try:
-                            await state["current_message"].delete()
-                        except:
-                            pass
-                        state["current_message"] = None
-        except Exception as e:
-            print(f"Playlist bilgisi çıkarılırken hata oluştu: {e}")
-            await interaction.followup.send(f"Playlist yüklenirken bir hata oluştu: {str(e)[:1000]}", ephemeral=True)
-            if interaction.guild.voice_client and not state["is_playing"]:
-                await interaction.guild.voice_client.disconnect()
-                state["queue"].clear()
-                if state["current_message"]:
-                    try:
-                        await state["current_message"].delete()
-                    except:
-                        pass
-                    state["current_message"] = None
-
-    def get_control_buttons(self, interaction):
-        view = View(timeout=600)
-        state = self.get_guild_state(interaction.guild.id)
-        async def stop_callback(interaction):
-            await interaction.response.defer()
-            if interaction.guild.voice_client.is_playing():
-                interaction.guild.voice_client.pause()
-                await interaction.followup.send("Şarkı durduruldu.", ephemeral=True)
-                new_view = self.get_control_buttons(interaction)
-                await state["current_message"].edit(view=new_view)
-            elif interaction.guild.voice_client.is_paused():
-                interaction.guild.voice_client.resume()
-                await interaction.followup.send("Şarkı devam ediyor.", ephemeral=True)
-                new_view = self.get_control_buttons(interaction)
-                await state["current_message"].edit(view=new_view)
-
-        async def resume_callback(interaction):
-            await interaction.response.defer()
-            if interaction.guild.voice_client.is_paused():
-                interaction.guild.voice_client.resume()
-                await interaction.followup.send("Şarkı devam ediyor.", ephemeral=True)
-                new_view = self.get_control_buttons(interaction)
-                await state["current_message"].edit(view=new_view)
-
-        async def skip_callback(interaction):
-            await interaction.response.defer()
-            if interaction.guild.voice_client.is_playing():
-                interaction.guild.voice_client.stop()
-                embed = state["current_message"].embeds[0]
-                embed.title = "Sıradaki şarkıya geçildi."
-                await state["current_message"].edit(embed=embed)
-
-        async def exit_callback(interaction):
-            await interaction.response.defer()
-            if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
-                if interaction.user != state["caller"]:
-                    await interaction.followup.send("Botu sadece çağıran kişi çıkartabilir.", ephemeral=True)
-                    return
-                await interaction.guild.voice_client.disconnect()
+                await interaction.followup.send("Playlistte geçerli şarkı bulunamadı.", ephemeral=True)
                 state["queue"].clear()
                 state["is_playing"] = False
                 await state["current_message"].delete()
                 state["current_message"] = None
-                embed = discord.Embed(title="Çaycı Artık Özgür!", description="Bot ses kanalından çıkartıldı.", color=discord.Color.red())
-                await interaction.channel.send(embed=embed)
-            else:
-                await interaction.channel.send("Bot bir ses kanalında değil.")
+                await interaction.guild.voice_client.disconnect()
 
-        async def siradakiler_callback(interaction):
-            await interaction.response.defer()
-            if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
-                valid_queue = [entry for entry in state["queue"] if entry.get('title') and entry.get('url')]
-                if valid_queue:
-                    pages = []
-                    max_chars = 1024
-                    current_message = ""
-                    for idx, entry in enumerate(valid_queue):
-                        next_entry = f"{idx + 1}. {entry['title']}\n"
-                        if len(current_message) + len(next_entry) > max_chars:
-                            pages.append(current_message)
-                            current_message = next_entry
-                        else:
-                            current_message += next_entry
-                    if current_message:
-                        pages.append(current_message)
-                    current_page = 0
-                    embed = discord.Embed(title="Sıradaki Şarkılar", description=pages[current_page], color=discord.Color.blue())
+        except Exception as e:
+            print(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
+            return
 
-                    async def next_callback(interaction):
-                        nonlocal current_page
-                        if current_page < len(pages) - 1:
-                            current_page += 1
-                            embed.description = pages[current_page]
-                            await interaction.response.edit_message(embed=embed, view=view)
+    def get_control_buttons(self, interaction):
+        view = discord.ui.View(timeout=600)
+        state = self.get_guild_state(interaction.guild.id)
+        
+        # Button tanımlamaları
+        stop_button = Button(emoji="⏹️", style=discord.ButtonStyle.danger)
+        pause_button = Button(emoji="⏯️", style=discord.ButtonStyle.primary)
+        skip_button = Button(emoji="⏭️", style=discord.ButtonStyle.primary) 
+        queue_button = Button(emoji="📋", style=discord.ButtonStyle.secondary)
+        favorite_button = Button(emoji="❤️", style=discord.ButtonStyle.success)
+        
+        # Callback tanımlamaları
+        stop_button.callback = lambda i: self.button_stop_callback(i)
+        pause_button.callback = lambda i: self.button_pause_callback(i)
+        skip_button.callback = lambda i: self.button_skip_callback(i)
+        queue_button.callback = lambda i: self.button_queue_callback(i)
+        favorite_button.callback = lambda i: self.button_favorite_callback(i)
 
-                    async def previous_callback(interaction):
-                        nonlocal current_page
-                        if current_page > 0:
-                            current_page -= 1
-                            embed.description = pages[current_page]
-                            await interaction.response.edit_message(embed=embed, view=view)
+        # Butonları view'e ekleme
 
-                    next_button = Button(label="İleri", style=discord.ButtonStyle.primary)
-                    previous_button = Button(label="Geri", style=discord.ButtonStyle.primary)
-                    next_button.callback = next_callback
-                    previous_button.callback = previous_callback
-                    view = View()
-                    view.add_item(previous_button)
-                    view.add_item(next_button)
-                    message = await interaction.channel.send(embed=embed, view=view)
-                    await message.delete(delay=30)
-                else:
-                    message = await interaction.channel.send("Sırada şarkı yok.")
-                    await message.delete(delay=30)
-            else:
-                message = await interaction.channel.send("Bot bir ses kanalında değil.")
-                await message.delete(delay=30)
-
-        exit_button = Button(label="", emoji="⏹️", style=discord.ButtonStyle.primary)
-        stop_button = Button(label="", emoji="⏯️", style=discord.ButtonStyle.primary)
-        skip_button = Button(label="", emoji="⏭️", style=discord.ButtonStyle.primary)
-        siradakiler_button = Button(label="", emoji="📋", style=discord.ButtonStyle.primary)
-
-        exit_button.callback = exit_callback
-        stop_button.callback = stop_callback
-        skip_button.callback = skip_callback
-        siradakiler_button.callback = siradakiler_callback
-
-        view = View()
-        view.add_item(exit_button)
         view.add_item(stop_button)
+        view.add_item(pause_button)
         view.add_item(skip_button)
-        view.add_item(siradakiler_button)
+        view.add_item(queue_button)
+        view.add_item(favorite_button)
+
         return view
 
     @discord.app_commands.command(name="siradakiler", description="Sıradaki şarkıları gösterir")
@@ -592,7 +315,7 @@ class Music(commands.Cog):
             valid_queue = [entry for entry in state["queue"] if entry.get('title') and entry.get('url')]
             if valid_queue:
                 pages = []
-                max_chars = 1024
+                max_chars = 1024  # Discord embed field character limit
                 current_message = ""
                 for idx, entry in enumerate(valid_queue):
                     next_entry = f"{idx + 1}. {entry['title']}\n"
@@ -603,18 +326,20 @@ class Music(commands.Cog):
                         current_message += next_entry
                 if current_message:
                     pages.append(current_message)
+
+                # Pagination with buttons
                 current_page = 0
                 embed = discord.Embed(title="Sıradaki Şarkılar", description=pages[current_page], color=discord.Color.blue())
 
                 async def next_callback(interaction):
-                    nonlocal current_page
+                    nonlocal current_page, view
                     if current_page < len(pages) - 1:
                         current_page += 1
                         embed.description = pages[current_page]
                         await interaction.response.edit_message(embed=embed, view=view)
 
                 async def previous_callback(interaction):
-                    nonlocal current_page
+                    nonlocal current_page, view
                     if current_page > 0:
                         current_page -= 1
                         embed.description = pages[current_page]
@@ -622,24 +347,29 @@ class Music(commands.Cog):
 
                 next_button = Button(label="İleri", style=discord.ButtonStyle.primary)
                 previous_button = Button(label="Geri", style=discord.ButtonStyle.primary)
+
                 next_button.callback = next_callback
                 previous_button.callback = previous_callback
+
                 view = View()
                 view.add_item(previous_button)
                 view.add_item(next_button)
                 message = await interaction.response.send_message(embed=embed, view=view)
-                await message.delete(delay=30)
+                await message.delete(delay=30)  
             else:
                 message = await interaction.response.send_message("Sırada şarkı yok.")
-                await message.delete(delay=30)
+                await message.delete(delay=30) 
         else:
             message = await interaction.response.send_message("Bot bir ses kanalında değil.")
-            await message.delete(delay=30)
+            await message.delete(delay=30) 
+
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        if not member.bot:
+        if member.id != self.bot.user.id:
             return
+
+
         state = self.get_guild_state(member.guild.id)
         if before.channel is not None and after.channel is None:
             state["queue"].clear()
@@ -660,8 +390,8 @@ class Music(commands.Cog):
         for guild in self.bot.guilds:
             voice_state = self.get_voice_state(guild)
             if voice_state and len(voice_state.members) == 1:
-                await asyncio.sleep(600)
-                if len(voice_state.members) == 1:
+                await asyncio.sleep(600)  # 10 dakika bekle
+                if len(voice_state.members) == 1:  # Tekrar kontrol et
                     await guild.voice_client.disconnect()
                     state = self.get_guild_state(guild.id)
                     state["queue"].clear()
@@ -680,13 +410,17 @@ class Music(commands.Cog):
             state = self.get_guild_state(interaction.guild.id)
             if state["current_message"] and interaction.message.id == state["current_message"].id:
                 await interaction.response.defer()
+                # Refresh the message to keep buttons active
                 embed = state["current_message"].embeds[0]
                 view = self.get_control_buttons(interaction)
                 await state["current_message"].edit(embed=embed, view=view)
 
     def cog_unload(self):
+        # Müzik çalma işlemlerini durdur
         for vc in self.bot.voice_clients:
             self.bot.loop.create_task(vc.disconnect(force=True))
+        
+        # Varsa queue'ları temizle
         if hasattr(self, 'queue'):
             self.queue.clear()
 
@@ -749,7 +483,7 @@ class Music(commands.Cog):
         def __init__(self, pages, current_page=0):
             super().__init__(timeout=None)
             self.pages = pages
-            self.current_page = current_page
+            self.current_page = 0
             self.total_pages = len(pages)
             self.update_buttons()
         
@@ -779,6 +513,7 @@ class Music(commands.Cog):
         async def on_timeout(self):
             for item in self.children:
                 item.disabled = True
+            await self.message.edit(view=self)
 
     @discord.app_commands.command(name="favoriler", description="Favori şarkıları listeler")
     async def slash_favoriler(self, interaction: discord.Interaction):
@@ -809,57 +544,12 @@ class Music(commands.Cog):
             print(f"Favoriler listesi hatası: {e}")
             await interaction.followup.send("Favori şarkılar listelenirken bir hata oluştu.", ephemeral=True)
 
-    @discord.app_commands.command(name="favorical")
-    @discord.app_commands.describe(sira_no="Çalmak istediğiniz şarkının sıra numarası")
-    async def slash_favorical(self, interaction: discord.Interaction, sira_no: app_commands.Range[int, 1, 100]):
-        user_id = str(interaction.user.id)
-        guild_id = str(interaction.guild.id)
-        try:
-            channel = interaction.user.voice.channel
-            if interaction.guild.voice_client is None:
-                await channel.connect()
-            elif interaction.guild.voice_client.channel != channel:
-                await interaction.response.send_message(
-                    f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.",
-                    ephemeral=True
-                )
-                return
-        except AttributeError:
-            await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
-            return
-
-        favorites = await self.get_favorites(user_id, guild_id)
-        if not favorites:
-            await interaction.response.send_message("Favori şarkı listeniz boş!", ephemeral=True)
-            return
-        if sira_no < 1 or sira_no > len(favorites):
-            await interaction.response.send_message(f"Geçersiz şarkı numarası! 1 ile {len(favorites)} arasında bir sayı girin.", ephemeral=True)
-            return
-
-        await interaction.response.defer()
-        try:
-            selected_song = favorites[sira_no - 1]
-            state = self.get_guild_state(interaction.guild.id)
-            entries = await self.YTDLSource.from_url(selected_song[1], loop=self.bot.loop, stream=True)
-            if entries and len(entries) > 0:
-                async with state["queue_lock"]:
-                    state["queue"].append(entries[0])
-                if not state["is_playing"]:
-                    await self.prepare_next_song(interaction)
-                else:
-                    await interaction.followup.send(f"**{selected_song[0]}** sıraya eklendi.", ephemeral=True)
-            else:
-                await interaction.followup.send("Şarkı yüklenemedi veya bulunamadı.", ephemeral=True)
-        except Exception as e:
-            print(f"Favori şarkı çalma hatası: {e}")
-            await interaction.followup.send("Şarkı çalınırken bir hata oluştu.", ephemeral=True)
-
     @discord.app_commands.command(name="favoricallist", description="Tüm favori şarkılarınızı sıraya ekler ve çalar")
     async def slash_favoricallist(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
-        
-        # Ses kanalı kontrolü
+
+        # Ses kanalında mı?
         try:
             channel = interaction.user.voice.channel
             if interaction.guild.voice_client is None:
@@ -868,59 +558,71 @@ class Music(commands.Cog):
                 state["caller"] = interaction.user
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(
-                    f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.",
+                    f"🔒 Bot şu anda başka bir ses kanalında: **{interaction.guild.voice_client.channel.name}**",
                     ephemeral=True
                 )
                 return
         except AttributeError:
-            await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
+            await interaction.response.send_message("📢 Lütfen önce bir ses kanalına katılın.", ephemeral=True)
             return
 
-        # Favorileri kontrol et
+        # Favori verilerini al
         favorites = await self.get_favorites(user_id, guild_id)
-        
         if not favorites:
-            await interaction.response.send_message("Favori şarkı listeniz boş!", ephemeral=True)
+            await interaction.response.send_message("📭 Favori listeniz boş!", ephemeral=True)
             return
-            
-        # Yükleniyor mesajı
-        await interaction.response.defer()
-        
-        try:
-            state = self.get_guild_state(interaction.guild.id)
-            songs_added = 0
 
-            for song_title, song_url in favorites:
-                entries = await self.YTDLSource.from_url(song_url, loop=self.bot.loop, stream=True)
+        await interaction.response.defer()
+
+        state = self.get_guild_state(interaction.guild.id)
+        songs_added = 0
+        failed_songs = []
+
+        for title, url in favorites:
+            if "googlevideo.com" in url:
+                print(f"Geçersiz yönlendirme linki atlandı: {url}")
+                failed_songs.append(title)
+                continue
+            try:
+                entries = await self.YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
                 if entries and len(entries) > 0:
                     async with state["queue_lock"]:
                         state["queue"].append(entries[0])
                         songs_added += 1
-
-            if songs_added > 0:
-                if not state["is_playing"]:
-                    state["is_playing"] = True
-                    await self.prepare_next_song(interaction)
                 else:
-                    embed = discord.Embed(
-                        title="Favoriler Eklendi",
-                        description=f"✅ {songs_added} favori şarkı sıraya eklendi!",
-                        color=discord.Color.green()
-                    )
-                    await interaction.followup.send(embed=embed, ephemeral=True)
-            else:
-                await interaction.followup.send("Şarkılar eklenirken bir sorun oluştu.", ephemeral=True)
-                if not state["is_playing"] and interaction.guild.voice_client:
-                    await interaction.guild.voice_client.disconnect()
-        except Exception as e:
-            print(f"Favori şarkı listesi çalma hatası: {e}")
+                    failed_songs.append(title)
+            except Exception as e:
+                print(f"Yüklenemeyen favori: {title} ({url}) -> {e}")
+                failed_songs.append(title)
+
+        if songs_added > 0:
+            if not state["is_playing"]:
+                state["is_playing"] = True
+                await self.prepare_next_song(interaction)
+
+            embed = discord.Embed(
+                title="🎶 Favoriler Eklendi",
+                description=f"✅ {songs_added} şarkı sıraya başarıyla eklendi.",
+                color=discord.Color.green()
+            )
+
+            if failed_songs:
+                failed_text = '\n'.join(
+                    [f"❌ {t[:40]}..." if len(t) > 40 else f"❌ {t}" for t in failed_songs]
+                )
+                embed.add_field(name="Eklenemeyen Şarkılar", value=failed_text[:1024], inline=False)
+
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
             await interaction.followup.send(
-                f"Şarkılar eklenirken bir hata oluştu: {str(e)[:1000]}",
+                "❌ Hiçbir şarkı yüklenemedi. Şarkılar silinmiş veya engellenmiş olabilir.",
                 ephemeral=True
             )
-            if not state["is_playing"] and interaction.guild.voice_client:
+            if interaction.guild.voice_client:
                 await interaction.guild.voice_client.disconnect()
-                state["queue"].clear()
+            state["queue"].clear()
+            state["is_playing"] = False
+
 
 
     @discord.app_commands.command(name="favorisil")
@@ -986,6 +688,62 @@ class Music(commands.Cog):
                 color=discord.Color.red()
             )
             await interaction.response.send_message(embed=error_embed, ephemeral=True)
+
+class QueueView(discord.ui.View):
+    def __init__(self, pages, timeout=30):
+        super().__init__(timeout=timeout)
+        self.pages = pages
+        self.current_page = 0
+        
+    @discord.ui.button(label="◀️", style=discord.ButtonStyle.primary)
+    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            embed = discord.Embed(title="Sıradaki Şarkılar", description=self.pages[self.current_page], color=discord.Color.blue())
+            await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="▶️", style=discord.ButtonStyle.primary)  
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < len(self.pages) - 1:
+            self.current_page += 1
+            embed = discord.Embed(title="Sıradaki Şarkılar", description=self.pages[self.current_page], color=discord.Color.blue())
+            await interaction.response.edit_message(embed=embed, view=self)
+            
+    async def on_timeout(self):
+        for item in self.children:
+            item.disabled = True
+        await self.message.edit(view=self)
+
+class FavoritesView(discord.ui.View):
+    def __init__(self, pages):
+        super().__init__(timeout=None)
+        self.pages = pages
+        self.current_page = 0
+        self.total_pages = len(pages)
+        self.update_buttons()
+    
+    def update_buttons(self):
+        self.previous_page.disabled = self.current_page <= 0
+        self.next_page.disabled = self.current_page >= self.total_pages - 1
+        self.page_counter.label = f"Sayfa {self.current_page + 1}/{self.total_pages}"
+    
+    @discord.ui.button(emoji="◀️", style=discord.ButtonStyle.primary)
+    async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
+    
+    @discord.ui.button(label="Sayfa 1/1", style=discord.ButtonStyle.secondary, disabled=True)
+    async def page_counter(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pass
+    
+    @discord.ui.button(emoji="▶️", style=discord.ButtonStyle.primary)
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < len(self.pages) - 1:
+            self.current_page += 1
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
 
 async def setup(bot):
     await bot.add_cog(Music(bot))
