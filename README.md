@@ -11,8 +11,6 @@ Bu Discord botu, çeşitli eğlence, ekonomi ve müzik özellikleri sunan çok a
 - Otomatik ses kanalından çıkma
 - Kullanıcı dostu buton kontrolleri
 - Favori şarkı sistemi
-- Döngü modları (tek şarkı/liste)
-- Sıra karıştırma özelliği
 
 ### 💰 Ekonomi Sistemi
 - Sikke tabanlı ekonomi sistemi
@@ -80,6 +78,11 @@ Bu Discord botu, çeşitli eğlence, ekonomi ve müzik özellikleri sunan çok a
 - `/cal <şarkı adı veya URL>` - Müzik çalar
 - Şarkı kontrolü için interaktif butonlar
 - `/siradakiler` - Sıradaki şarkıları gösterir
+- `/favori` - Çalan şarkıyı favorilere ekler/çıkarır
+- `/favoriler` - Favori şarkıları listeler (sayfalı görünüm)
+- `/favorical <numara>` - Favori listesinden şarkı çalar
+- `/favorisil <numara>` - Favori listesinden şarkı siler
+- `/favoritümünüsil` - Tüm favori şarkıları siler
 
 ### Ekonomi Komutları
 - `/btransfer <kullanici> <miktar>` - Miktar (min. 1)
