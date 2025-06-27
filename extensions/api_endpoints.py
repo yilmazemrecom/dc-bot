@@ -1,12 +1,20 @@
 # /home/work/dc-bot/extensions/simple_api.py
-import discord
 from discord.ext import commands
 from aiohttp import web
 import aiosqlite
 import json
 import asyncio
 from datetime import datetime
-from config import API_SECRET, API_PORT, API_HOST
+import traceback
+
+# Config'den import et
+try:
+    from config import API_SECRET, API_PORT, API_HOST
+except ImportError:
+    # Eğer config'de yoksa default değerler
+    API_SECRET = 'default-secret-change-this'
+    API_PORT = 8080
+    API_HOST = '0.0.0.0'
 
 class SimpleAPI(commands.Cog):
     def __init__(self, bot):
@@ -16,45 +24,61 @@ class SimpleAPI(commands.Cog):
         self.runner = None
         
     async def cog_load(self):
-        await self.start_api_server()
-        print(f"🌐 API Server started on http://{API_HOST}:{API_PORT}")
+        try:
+            await self.start_api_server()
+            print(f"✅ API Server started on http://{API_HOST}:{API_PORT}")
+        except Exception as e:
+            print(f"❌ API Server failed to start: {e}")
+            traceback.print_exc()
     
     async def cog_unload(self):
         if self.runner:
-            await self.runner.cleanup()
+            try:
+                await self.runner.cleanup()
+                print("✅ API Server stopped")
+            except Exception as e:
+                print(f"❌ API Server cleanup error: {e}")
 
     async def cors_and_auth(self, request, handler):
-        # CORS için OPTIONS isteği
-        if request.method == "OPTIONS":
-            return web.Response(
-                headers={
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-                }
-            )
-        
-        # Basit auth kontrolü
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
-            return web.json_response({'error': 'Authorization required'}, status=401)
-        
-        provided_key = auth_header[7:]  # "Bearer " kısmını çıkar
-        if provided_key != self.api_secret:
-            return web.json_response({'error': 'Invalid API key'}, status=401)
-        
-        response = await handler(request)
-        
-        # CORS headers ekle
-        response.headers['Access-Control-Allow-Origin'] = '*'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        
-        return response
+        try:
+            # CORS için OPTIONS isteği
+            if request.method == "OPTIONS":
+                return web.Response(
+                    headers={
+                        'Access-Control-Allow-Origin': '*',
+                        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+                    }
+                )
+            
+            # Health check için auth gerektirme
+            if request.path == '/api/health':
+                response = await handler(request)
+                response.headers['Access-Control-Allow-Origin'] = '*'
+                return response
+            
+            # Diğer endpoint'ler için auth kontrolü
+            auth_header = request.headers.get('Authorization', '')
+            if not auth_header.startswith('Bearer '):
+                return web.json_response({'error': 'Authorization required'}, status=401)
+            
+            provided_key = auth_header[7:]  # "Bearer " kısmını çıkar
+            if provided_key != self.api_secret:
+                return web.json_response({'error': 'Invalid API key'}, status=401)
+            
+            response = await handler(request)
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            return response
+            
+        except Exception as e:
+            print(f"Auth middleware error: {e}")
+            traceback.print_exc()
+            return web.json_response({'error': 'Internal server error'}, status=500)
 
     async def start_api_server(self):
         self.app = web.Application(middlewares=[self.cors_and_auth])
         
-        # Basit routes
+        # Routes
         self.app.router.add_get('/api/health', self.health_check)
         self.app.router.add_get('/api/stats', self.get_stats)
         self.app.router.add_get('/api/users', self.get_users)
@@ -71,12 +95,17 @@ class SimpleAPI(commands.Cog):
         await site.start()
 
     async def health_check(self, request):
-        return web.json_response({
-            'status': 'healthy',
-            'bot_online': self.bot.is_ready(),
-            'guilds': len(self.bot.guilds),
-            'timestamp': datetime.now().isoformat()
-        })
+        try:
+            return web.json_response({
+                'status': 'healthy',
+                'bot_online': self.bot.is_ready(),
+                'guilds': len(self.bot.guilds),
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as e:
+            print(f"Health check error: {e}")
+            traceback.print_exc()
+            return web.json_response({'error': str(e)}, status=500)
 
     async def get_stats(self, request):
         try:
@@ -111,6 +140,8 @@ class SimpleAPI(commands.Cog):
                     'bot_status': 'online' if self.bot.is_ready() else 'offline'
                 })
         except Exception as e:
+            print(f"Get stats error: {e}")
+            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def get_users(self, request):
@@ -147,6 +178,8 @@ class SimpleAPI(commands.Cog):
                     }
                 })
         except Exception as e:
+            print(f"Get users error: {e}")
+            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def search_users(self, request):
@@ -175,6 +208,8 @@ class SimpleAPI(commands.Cog):
                     ]
                 })
         except Exception as e:
+            print(f"Search users error: {e}")
+            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def update_balance(self, request):
@@ -203,6 +238,8 @@ class SimpleAPI(commands.Cog):
                     'new_balance': new_balance
                 })
         except Exception as e:
+            print(f"Update balance error: {e}")
+            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def get_teams(self, request):
@@ -229,6 +266,8 @@ class SimpleAPI(commands.Cog):
                     ]
                 })
         except Exception as e:
+            print(f"Get teams error: {e}")
+            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def get_servers(self, request):
@@ -251,6 +290,8 @@ class SimpleAPI(commands.Cog):
                     ]
                 })
         except Exception as e:
+            print(f"Get servers error: {e}")
+            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def broadcast_message(self, request):
@@ -275,6 +316,7 @@ class SimpleAPI(commands.Cog):
                                 break
                         
                         if channel:
+                            import discord
                             embed = discord.Embed(
                                 title="📢 Çaycı Bot Duyurusu",
                                 description=message,
@@ -283,7 +325,8 @@ class SimpleAPI(commands.Cog):
                             )
                             await channel.send(embed=embed)
                             sent_count += 1
-                    except:
+                    except Exception as e:
+                        print(f"Broadcast error for guild {guild.id}: {e}")
                         continue
             
             return web.json_response({
@@ -293,6 +336,8 @@ class SimpleAPI(commands.Cog):
             })
             
         except Exception as e:
+            print(f"Broadcast error: {e}")
+            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
 async def setup(bot):
