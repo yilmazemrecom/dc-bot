@@ -1,4 +1,4 @@
-# /home/work/dc-bot/extensions/simple_api.py
+# /home/work/dc-bot/extensions/simple_api.py - TAM DÜZELTME
 from discord.ext import commands
 from aiohttp import web
 import aiosqlite
@@ -6,12 +6,12 @@ import json
 import asyncio
 from datetime import datetime
 import traceback
+import discord
 
 # Config'den import et
 try:
     from config import API_SECRET, API_PORT, API_HOST
 except ImportError:
-    # Eğer config'de yoksa default değerler
     API_SECRET = 'default-secret-change-this'
     API_PORT = 8080
     API_HOST = '0.0.0.0'
@@ -39,7 +39,9 @@ class SimpleAPI(commands.Cog):
             except Exception as e:
                 print(f"❌ API Server cleanup error: {e}")
 
-    async def cors_and_auth(self, request, handler):
+    # DÜZELTME: Middleware fonksiyonu
+    @web.middleware
+    async def cors_and_auth_middleware(self, request, handler):
         try:
             # CORS için OPTIONS isteği
             if request.method == "OPTIONS":
@@ -71,12 +73,13 @@ class SimpleAPI(commands.Cog):
             return response
             
         except Exception as e:
-            print(f"Auth middleware error: {e}")
+            print(f"Middleware error: {e}")
             traceback.print_exc()
             return web.json_response({'error': 'Internal server error'}, status=500)
 
     async def start_api_server(self):
-        self.app = web.Application(middlewares=[self.cors_and_auth])
+        # DÜZELTME: Middleware'i doğru şekilde ekle
+        self.app = web.Application(middlewares=[self.cors_and_auth_middleware])
         
         # Routes
         self.app.router.add_get('/api/health', self.health_check)
@@ -99,12 +102,11 @@ class SimpleAPI(commands.Cog):
             return web.json_response({
                 'status': 'healthy',
                 'bot_online': self.bot.is_ready(),
-                'guilds': len(self.bot.guilds),
+                'guilds': len(self.bot.guilds) if self.bot.guilds else 0,
                 'timestamp': datetime.now().isoformat()
             })
         except Exception as e:
             print(f"Health check error: {e}")
-            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def get_stats(self, request):
@@ -112,19 +114,23 @@ class SimpleAPI(commands.Cog):
             async with aiosqlite.connect('database/economy.db') as db:
                 # Temel istatistikler
                 cursor = await db.execute('SELECT COUNT(*) FROM economy')
-                total_users = (await cursor.fetchone())[0]
+                row = await cursor.fetchone()
+                total_users = row[0] if row else 0
                 
                 cursor = await db.execute('SELECT SUM(bakiye) FROM economy')
-                total_coins = (await cursor.fetchone())[0] or 0
+                row = await cursor.fetchone()
+                total_coins = row[0] if row and row[0] else 0
                 
                 cursor = await db.execute('SELECT username, bakiye FROM economy ORDER BY bakiye DESC LIMIT 1')
                 richest = await cursor.fetchone()
                 
                 cursor = await db.execute('SELECT COUNT(*) FROM sunucular')
-                total_servers = (await cursor.fetchone())[0]
+                row = await cursor.fetchone()
+                total_servers = row[0] if row else 0
                 
                 cursor = await db.execute('SELECT COUNT(*) FROM takimlar')
-                total_teams = (await cursor.fetchone())[0]
+                row = await cursor.fetchone()
+                total_teams = row[0] if row else 0
                 
                 return web.json_response({
                     'total_users': total_users,
@@ -136,23 +142,23 @@ class SimpleAPI(commands.Cog):
                     },
                     'total_servers': total_servers,
                     'total_teams': total_teams,
-                    'bot_guilds': len(self.bot.guilds),
+                    'bot_guilds': len(self.bot.guilds) if self.bot.guilds else 0,
                     'bot_status': 'online' if self.bot.is_ready() else 'offline'
                 })
         except Exception as e:
             print(f"Get stats error: {e}")
-            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def get_users(self, request):
         try:
             page = int(request.query.get('page', 1))
-            limit = min(int(request.query.get('limit', 20)), 100)  # Max 100
+            limit = min(int(request.query.get('limit', 20)), 100)
             offset = (page - 1) * limit
             
             async with aiosqlite.connect('database/economy.db') as db:
                 cursor = await db.execute('SELECT COUNT(*) FROM economy')
-                total = (await cursor.fetchone())[0]
+                row = await cursor.fetchone()
+                total = row[0] if row else 0
                 
                 cursor = await db.execute('''
                     SELECT user_id, username, bakiye 
@@ -165,21 +171,20 @@ class SimpleAPI(commands.Cog):
                 return web.json_response({
                     'users': [
                         {
-                            'user_id': u[0],
-                            'username': u[1],
-                            'balance': u[2]
+                            'user_id': str(u[0]),
+                            'username': str(u[1]),
+                            'balance': int(u[2])
                         } for u in users
                     ],
                     'pagination': {
                         'page': page,
                         'limit': limit,
                         'total': total,
-                        'pages': (total + limit - 1) // limit
+                        'pages': (total + limit - 1) // limit if total > 0 else 1
                     }
                 })
         except Exception as e:
             print(f"Get users error: {e}")
-            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def search_users(self, request):
@@ -201,15 +206,14 @@ class SimpleAPI(commands.Cog):
                 return web.json_response({
                     'users': [
                         {
-                            'user_id': u[0],
-                            'username': u[1], 
-                            'balance': u[2]
+                            'user_id': str(u[0]),
+                            'username': str(u[1]), 
+                            'balance': int(u[2])
                         } for u in users
                     ]
                 })
         except Exception as e:
             print(f"Search users error: {e}")
-            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def update_balance(self, request):
@@ -219,7 +223,7 @@ class SimpleAPI(commands.Cog):
             new_balance = data.get('balance')
             
             if not isinstance(new_balance, int):
-                return web.json_response({'error': 'Invalid balance'}, status=400)
+                return web.json_response({'error': 'Invalid balance type'}, status=400)
             
             async with aiosqlite.connect('database/economy.db') as db:
                 cursor = await db.execute('SELECT username FROM economy WHERE user_id = ?', (user_id,))
@@ -239,7 +243,6 @@ class SimpleAPI(commands.Cog):
                 })
         except Exception as e:
             print(f"Update balance error: {e}")
-            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def get_teams(self, request):
@@ -255,19 +258,18 @@ class SimpleAPI(commands.Cog):
                 return web.json_response({
                     'teams': [
                         {
-                            'user_id': t[0],
-                            'team_name': t[1],
-                            'captain': t[2],
-                            'balance': t[3],
-                            'wins': t[4],
-                            'losses': t[5],
+                            'user_id': str(t[0]),
+                            'team_name': str(t[1]),
+                            'captain': str(t[2]),
+                            'balance': int(t[3]),
+                            'wins': int(t[4]),
+                            'losses': int(t[5]),
                             'win_rate': round(t[4] / (t[4] + t[5]) * 100, 1) if (t[4] + t[5]) > 0 else 0
                         } for t in teams
                     ]
                 })
         except Exception as e:
             print(f"Get teams error: {e}")
-            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def get_servers(self, request):
@@ -283,15 +285,14 @@ class SimpleAPI(commands.Cog):
                 return web.json_response({
                     'servers': [
                         {
-                            'server_id': s[0],
-                            'server_name': s[1],
-                            'member_count': s[2]
+                            'server_id': str(s[0]),
+                            'server_name': str(s[1]),
+                            'member_count': int(s[2]) if s[2] else 0
                         } for s in servers
                     ]
                 })
         except Exception as e:
             print(f"Get servers error: {e}")
-            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
     async def broadcast_message(self, request):
@@ -316,7 +317,6 @@ class SimpleAPI(commands.Cog):
                                 break
                         
                         if channel:
-                            import discord
                             embed = discord.Embed(
                                 title="📢 Çaycı Bot Duyurusu",
                                 description=message,
@@ -337,7 +337,6 @@ class SimpleAPI(commands.Cog):
             
         except Exception as e:
             print(f"Broadcast error: {e}")
-            traceback.print_exc()
             return web.json_response({'error': str(e)}, status=500)
 
 async def setup(bot):
