@@ -1,4 +1,4 @@
-# /home/work/dc-bot/extensions/simple_api.py - TAM DÜZELTME
+# extensions/api_endpoints.py - COMPLETE VERSION
 from discord.ext import commands
 from aiohttp import web
 import aiosqlite
@@ -23,6 +23,8 @@ class SimpleAPI(commands.Cog):
         self.api_secret = API_SECRET
         self.app = None
         self.runner = None
+        self.broadcast_semaphore = asyncio.Semaphore(5)  # Aynı anda max 5 mesaj
+        self.broadcast_in_progress = False
         
     async def cog_load(self):
         try:
@@ -40,7 +42,6 @@ class SimpleAPI(commands.Cog):
             except Exception as e:
                 print(f"❌ API Server cleanup error: {e}")
 
-    # DÜZELTME: Middleware fonksiyonu
     @web.middleware
     async def cors_and_auth_middleware(self, request, handler):
         try:
@@ -79,21 +80,21 @@ class SimpleAPI(commands.Cog):
             return web.json_response({'error': 'Internal server error'}, status=500)
 
     async def start_api_server(self):
-        # DÜZELTME: Middleware'i doğru şekilde ekle
         self.app = web.Application(middlewares=[self.cors_and_auth_middleware])
         
         # Routes
         self.app.router.add_get('/api/health', self.health_check)
         self.app.router.add_get('/api/stats', self.get_stats)
-        self.app.router.add_get('/api/detailed-stats', self.get_detailed_stats)  # YENİ
+        self.app.router.add_get('/api/detailed-stats', self.get_detailed_stats)
         self.app.router.add_get('/api/users', self.get_users)
         self.app.router.add_get('/api/users/search', self.search_users)
         self.app.router.add_put('/api/users/{user_id}/balance', self.update_balance)
         self.app.router.add_get('/api/teams', self.get_teams)
         self.app.router.add_get('/api/servers', self.get_servers)
-        self.app.router.add_get('/api/servers/details', self.get_server_details)  # YENİ
+        self.app.router.add_get('/api/servers/details', self.get_server_details)
         self.app.router.add_post('/api/broadcast', self.broadcast_message)
-        self.app.router.add_post('/api/broadcast/preview', self.preview_broadcast)  # YENİ
+        self.app.router.add_post('/api/broadcast/preview', self.preview_broadcast)
+        self.app.router.add_get('/api/broadcast/status', self.get_broadcast_status)
         
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
@@ -151,6 +152,88 @@ class SimpleAPI(commands.Cog):
                 })
         except Exception as e:
             print(f"Get stats error: {e}")
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_detailed_stats(self, request):
+        """Detaylı bot istatistikleri"""
+        try:
+            async with aiosqlite.connect('database/economy.db') as db:
+                # Kullanıcı istatistikleri
+                cursor = await db.execute('SELECT COUNT(*) FROM economy')
+                total_users = (await cursor.fetchone())[0]
+                
+                cursor = await db.execute('SELECT SUM(bakiye), AVG(bakiye), MAX(bakiye), MIN(bakiye) FROM economy')
+                balance_stats = await cursor.fetchone()
+                
+                cursor = await db.execute('SELECT COUNT(*) FROM economy WHERE bakiye > 1000')
+                rich_users = (await cursor.fetchone())[0]
+                
+                cursor = await db.execute('SELECT COUNT(*) FROM economy WHERE bakiye < 100')
+                poor_users = (await cursor.fetchone())[0]
+                
+                # Takım istatistikleri
+                cursor = await db.execute('SELECT COUNT(*), SUM(miktari), AVG(kazanilan_mac) FROM takimlar')
+                team_stats = await cursor.fetchone()
+                
+                # Sunucu istatistikleri
+                cursor = await db.execute('SELECT COUNT(*), SUM(sunucu_uye_sayisi), AVG(sunucu_uye_sayisi) FROM sunucular')
+                server_stats = await cursor.fetchone()
+            
+            # Bot durumu
+            bot_stats = {
+                'guilds': len(self.bot.guilds),
+                'users': sum(guild.member_count for guild in self.bot.guilds),
+                'channels': sum(len(guild.channels) for guild in self.bot.guilds),
+                'voice_clients': len(self.bot.voice_clients),
+                'latency': round(self.bot.latency * 1000, 2),  # ms
+                'uptime': str(datetime.now() - self.bot.start_time) if hasattr(self.bot, 'start_time') else 'Unknown'
+            }
+            
+            # Bakiye dağılımı
+            balance_distribution = {
+                'total_coins': balance_stats[0] or 0,
+                'average_balance': round(balance_stats[1] or 0, 2),
+                'highest_balance': balance_stats[2] or 0,
+                'lowest_balance': balance_stats[3] or 0,
+                'rich_users': rich_users,  # >1000 sikke
+                'poor_users': poor_users,  # <100 sikke
+                'middle_class': total_users - rich_users - poor_users
+            }
+            
+            # Takım istatistikleri
+            team_statistics = {
+                'total_teams': team_stats[0] or 0,
+                'total_team_money': team_stats[1] or 0,
+                'average_wins': round(team_stats[2] or 0, 2)
+            }
+            
+            # Sunucu istatistikleri
+            server_statistics = {
+                'tracked_servers': server_stats[0] or 0,
+                'total_tracked_users': server_stats[1] or 0,
+                'average_server_size': round(server_stats[2] or 0, 2)
+            }
+            
+            # Son 24 saat aktivite (örnek - gerçekte log'dan alınmalı)
+            activity_stats = {
+                'messages_today': random.randint(1000, 5000),
+                'commands_used': random.randint(500, 2000),
+                'music_played': random.randint(100, 500),
+                'games_played': random.randint(200, 800)
+            }
+            
+            return web.json_response({
+                'bot_stats': bot_stats,
+                'balance_distribution': balance_distribution,
+                'team_statistics': team_statistics,
+                'server_statistics': server_statistics,
+                'activity_stats': activity_stats,
+                'total_registered_users': total_users,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            print(f"Detailed stats error: {e}")
             return web.json_response({'error': str(e)}, status=500)
 
     async def get_users(self, request):
@@ -372,92 +455,57 @@ class SimpleAPI(commands.Cog):
         except Exception as e:
             print(f"Get server details error: {e}")
             return web.json_response({'error': str(e)}, status=500)
-    # Bot durumu ve istatistikler için gelişmiş endpoint
-    async def get_detailed_stats(self, request):
-        """Detaylı bot istatistikleri"""
-        try:
-            # Veritabanı istatistikleri
-            async with aiosqlite.connect('database/economy.db') as db:
-                # Kullanıcı istatistikleri
-                cursor = await db.execute('SELECT COUNT(*) FROM economy')
-                total_users = (await cursor.fetchone())[0]
-                
-                cursor = await db.execute('SELECT SUM(bakiye), AVG(bakiye), MAX(bakiye), MIN(bakiye) FROM economy')
-                balance_stats = await cursor.fetchone()
-                
-                cursor = await db.execute('SELECT COUNT(*) FROM economy WHERE bakiye > 1000')
-                rich_users = (await cursor.fetchone())[0]
-                
-                cursor = await db.execute('SELECT COUNT(*) FROM economy WHERE bakiye < 100')
-                poor_users = (await cursor.fetchone())[0]
-                
-                # Takım istatistikleri
-                cursor = await db.execute('SELECT COUNT(*), SUM(miktari), AVG(kazanilan_mac) FROM takimlar')
-                team_stats = await cursor.fetchone()
-                
-                # Sunucu istatistikleri
-                cursor = await db.execute('SELECT COUNT(*), SUM(sunucu_uye_sayisi), AVG(sunucu_uye_sayisi) FROM sunucular')
-                server_stats = await cursor.fetchone()
-            
-            # Bot durumu
-            bot_stats = {
-                'guilds': len(self.bot.guilds),
-                'users': sum(guild.member_count for guild in self.bot.guilds),
-                'channels': sum(len(guild.channels) for guild in self.bot.guilds),
-                'voice_clients': len(self.bot.voice_clients),
-                'latency': round(self.bot.latency * 1000, 2),  # ms
-                'uptime': str(datetime.now() - self.bot.start_time) if hasattr(self.bot, 'start_time') else 'Unknown'
-            }
-            
-            # Bakiye dağılımı
-            balance_distribution = {
-                'total_coins': balance_stats[0] or 0,
-                'average_balance': round(balance_stats[1] or 0, 2),
-                'highest_balance': balance_stats[2] or 0,
-                'lowest_balance': balance_stats[3] or 0,
-                'rich_users': rich_users,  # >1000 sikke
-                'poor_users': poor_users,  # <100 sikke
-                'middle_class': total_users - rich_users - poor_users
-            }
-            
-            # Takım istatistikleri
-            team_statistics = {
-                'total_teams': team_stats[0] or 0,
-                'total_team_money': team_stats[1] or 0,
-                'average_wins': round(team_stats[2] or 0, 2)
-            }
-            
-            # Sunucu istatistikleri
-            server_statistics = {
-                'tracked_servers': server_stats[0] or 0,
-                'total_tracked_users': server_stats[1] or 0,
-                'average_server_size': round(server_stats[2] or 0, 2)
-            }
-            
-            # Son 24 saat aktivite (örnek - gerçekte log'dan alınmalı)
-            activity_stats = {
-                'messages_today': random.randint(1000, 5000),
-                'commands_used': random.randint(500, 2000),
-                'music_played': random.randint(100, 500),
-                'games_played': random.randint(200, 800)
-            }
-            
-            return web.json_response({
-                'bot_stats': bot_stats,
-                'balance_distribution': balance_distribution,
-                'team_statistics': team_statistics,
-                'server_statistics': server_statistics,
-                'activity_stats': activity_stats,
-                'total_registered_users': total_users,
-                'timestamp': datetime.now().isoformat()
-            })
-            
-        except Exception as e:
-            print(f"Detailed stats error: {e}")
-            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_broadcast_status(self, request):
+        """Duyuru gönderimi durumunu kontrol et"""
+        return web.json_response({
+            'in_progress': self.broadcast_in_progress,
+            'message': 'Duyuru gönderimi devam ediyor...' if self.broadcast_in_progress else 'Hazır'
+        })
         
+    async def send_message_with_limit(self, channel, message_content, broadcast_style):
+        """Rate limit ile mesaj gönder"""
+        async with self.broadcast_semaphore:
+            try:
+                if broadcast_style == 'embed':
+                    # Embed stil - daha güzel görünüm
+                    embed = discord.Embed(
+                        title="📢 Çaycı Bot Duyurusu",
+                        description=message_content,
+                        color=discord.Color.blue(),
+                        timestamp=datetime.now()
+                    )
+                    embed.set_footer(
+                        text=f"{channel.guild.name} • Çaycı Bot", 
+                        icon_url=self.bot.user.display_avatar.url if self.bot.user.display_avatar else None
+                    )
+                    embed.set_thumbnail(url=self.bot.user.display_avatar.url if self.bot.user.display_avatar else None)
+                    
+                    await channel.send(embed=embed)
+                else:
+                    # Düz metin stil
+                    formatted_message = f"📢 **Çaycı Bot Duyurusu**\n\n{message_content}\n\n*— Çaycı Bot Ekibi*"
+                    await channel.send(formatted_message)
+                
+                # Rate limit için bekleme
+                await asyncio.sleep(1.5)  # 1.5 saniye bekleme
+                return True
+                
+            except discord.Forbidden:
+                raise Exception('Yetki hatası')
+            except discord.HTTPException as e:
+                raise Exception(f'HTTP hatası: {str(e)}')
+            except Exception as e:
+                raise Exception(f'Bilinmeyen hata: {str(e)}')
+
     async def broadcast_message(self, request):
         try:
+            # Eğer duyuru gönderimi devam ediyorsa
+            if self.broadcast_in_progress:
+                return web.json_response({
+                    'error': 'Şu anda başka bir duyuru gönderimi devam ediyor. Lütfen bekleyin.'
+                }, status=429)
+                
             data = await request.json()
             message = data.get('message', '').strip()
             target = data.get('target', 'servers')
@@ -466,120 +514,117 @@ class SimpleAPI(commands.Cog):
             if not message:
                 return web.json_response({'error': 'Message required'}, status=400)
             
-            sent_count = 0
-            failed_count = 0
-            failed_servers = []
+            # Duyuru gönderimini başlat
+            self.broadcast_in_progress = True
             
-            if target in ['all', 'servers']:
-                for guild in self.bot.guilds:
-                    try:
-                        # Öncelik sırası: 
-                        # 1. "genel", "general", "sohbet", "chat" adlı kanallar
-                        # 2. "duyuru", "announcement", "announcements" adlı kanallar  
-                        # 3. İlk metin kanalı (mesaj gönderme yetkisi olan)
-                        
-                        channel = None
-                        
-                        # Öncelikli kanal adları
-                        priority_names = ['genel', 'general', 'sohbet', 'chat']
-                        announcement_names = ['duyuru', 'duyurular', 'announcement', 'announcements']
-                        
-                        # Önce öncelikli kanalları ara
-                        for ch in guild.text_channels:
-                            if ch.name.lower() in priority_names and ch.permissions_for(guild.me).send_messages:
-                                channel = ch
-                                break
-                        
-                        # Bulamazsa duyuru kanallarını ara
-                        if not channel:
-                            for ch in guild.text_channels:
-                                if ch.name.lower() in announcement_names and ch.permissions_for(guild.me).send_messages:
-                                    channel = ch
-                                    break
-                        
-                        # Hala bulamazsa ilk uygun kanalı al
-                        if not channel:
-                            for ch in guild.text_channels:
-                                if ch.permissions_for(guild.me).send_messages:
-                                    channel = ch
-                                    break
-                        
-                        if channel:
-                            if broadcast_style == 'embed':
-                                # Embed stil - daha güzel görünüm
-                                embed = discord.Embed(
-                                    title="📢 Çaycı Bot Duyurusu",
-                                    description=message,
-                                    color=discord.Color.blue(),
-                                    timestamp=datetime.now()
-                                )
-                                embed.set_footer(
-                                    text=f"{guild.name} • Çaycı Bot", 
-                                    icon_url=self.bot.user.display_avatar.url if self.bot.user.display_avatar else None
-                                )
-                                embed.set_thumbnail(url=self.bot.user.display_avatar.url if self.bot.user.display_avatar else None)
-                                
-                                await channel.send(embed=embed)
-                            else:
-                                # Düz metin stil
-                                formatted_message = f"📢 **Çaycı Bot Duyurusu**\n\n{message}\n\n*— Çaycı Bot Ekibi*"
-                                await channel.send(formatted_message)
-                            
-                            sent_count += 1
-                            print(f"✅ Duyuru gönderildi: {guild.name} ({guild.id}) -> #{channel.name}")
-                        else:
-                            failed_count += 1
-                            failed_servers.append({'name': guild.name, 'id': str(guild.id), 'reason': 'Uygun kanal bulunamadı'})
-                            print(f"❌ Duyuru gönderilemedi: {guild.name} - Uygun kanal yok")
-                            
-                    except discord.Forbidden:
-                        failed_count += 1
-                        failed_servers.append({'name': guild.name, 'id': str(guild.id), 'reason': 'Yetki hatası'})
-                        print(f"❌ Duyuru gönderilemedi: {guild.name} - Yetki yok")
-                        
-                    except discord.HTTPException as e:
-                        failed_count += 1
-                        failed_servers.append({'name': guild.name, 'id': str(guild.id), 'reason': f'HTTP hatası: {str(e)}'})
-                        print(f"❌ Duyuru gönderilemedi: {guild.name} - HTTP hatası: {e}")
-                        
-                    except Exception as e:
-                        failed_count += 1
-                        failed_servers.append({'name': guild.name, 'id': str(guild.id), 'reason': f'Bilinmeyen hata: {str(e)}'})
-                        print(f"❌ Duyuru gönderilemedi: {guild.name} - Hata: {e}")
-                        continue
-            
-            # Duyuru logunu kaydet
-            log_entry = {
-                'timestamp': datetime.now().isoformat(),
-                'message': message[:100] + '...' if len(message) > 100 else message,
-                'target': target,
-                'style': broadcast_style,
-                'sent_count': sent_count,
-                'failed_count': failed_count,
-                'total_servers': len(self.bot.guilds)
-            }
-            
-            # Log dosyasına kaydet (isteğe bağlı)
             try:
-                with open('logs/broadcast_log.json', 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
-            except:
-                pass  # Log yazma hatası önemli değil
-            
-            return web.json_response({
-                'success': True,
-                'sent_count': sent_count,
-                'failed_count': failed_count,
-                'failed_servers': failed_servers[:10],  # İlk 10 başarısız sunucuyu döndür
-                'total_servers': len(self.bot.guilds),
-                'message': f'Duyuru {sent_count}/{len(self.bot.guilds)} sunucuya başarıyla gönderildi'
-            })
-            
+                sent_count = 0
+                failed_count = 0
+                failed_servers = []
+                total_servers = len(self.bot.guilds)
+                
+                if target in ['all', 'servers']:
+                    print(f"🚀 Duyuru gönderimi başlatılıyor: {total_servers} sunucu")
+                    
+                    # Sunucuları küçükten büyüğe sırala (küçük sunuculardan başla)
+                    sorted_guilds = sorted(self.bot.guilds, key=lambda g: g.member_count)
+                    
+                    for i, guild in enumerate(sorted_guilds):
+                        try:
+                            # İlerleme durumunu log'la
+                            if i % 10 == 0:
+                                print(f"📈 İlerleme: {i}/{total_servers} sunucu tamamlandı")
+                            
+                            # Öncelikli kanal seçimi
+                            channel = None
+                            
+                            # Öncelik sırası: 
+                            # 1. "genel", "general", "sohbet", "chat" adlı kanallar
+                            # 2. "duyuru", "announcement", "announcements" adlı kanallar  
+                            # 3. İlk metin kanalı (mesaj gönderme yetkisi olan)
+                            
+                            priority_names = ['genel', 'general', 'sohbet', 'chat']
+                            announcement_names = ['duyuru', 'duyurular', 'announcement', 'announcements']
+                            
+                            # Önce öncelikli kanalları ara
+                            for ch in guild.text_channels:
+                                if ch.name.lower() in priority_names and ch.permissions_for(guild.me).send_messages:
+                                    channel = ch
+                                    break
+                            
+                            # Bulamazsa duyuru kanallarını ara
+                            if not channel:
+                                for ch in guild.text_channels:
+                                    if ch.name.lower() in announcement_names and ch.permissions_for(guild.me).send_messages:
+                                        channel = ch
+                                        break
+                            
+                            # Hala bulamazsa ilk uygun kanalı al
+                            if not channel:
+                                for ch in guild.text_channels:
+                                    if ch.permissions_for(guild.me).send_messages:
+                                        channel = ch
+                                        break
+                            
+                            if channel:
+                                # Rate limit ile mesaj gönder
+                                await self.send_message_with_limit(channel, message, broadcast_style)
+                                sent_count += 1
+                                print(f"✅ Duyuru gönderildi: {guild.name} ({guild.id}) -> #{channel.name}")
+                            else:
+                                failed_count += 1
+                                failed_servers.append({'name': guild.name, 'id': str(guild.id), 'reason': 'Uygun kanal bulunamadı'})
+                                print(f"❌ Duyuru gönderilemedi: {guild.name} - Uygun kanal yok")
+                                
+                        except Exception as e:
+                            failed_count += 1
+                            failed_servers.append({'name': guild.name, 'id': str(guild.id), 'reason': str(e)})
+                            print(f"❌ Duyuru gönderilemedi: {guild.name} - Hata: {e}")
+                            continue
+                
+                # Duyuru logunu kaydet
+                log_entry = {
+                    'timestamp': datetime.now().isoformat(),
+                    'message': message[:100] + '...' if len(message) > 100 else message,
+                    'target': target,
+                    'style': broadcast_style,
+                    'sent_count': sent_count,
+                    'failed_count': failed_count,
+                    'total_servers': len(self.bot.guilds),
+                    'success_rate': round((sent_count / total_servers) * 100, 2) if total_servers > 0 else 0
+                }
+                
+                # Log dosyasına kaydet (isteğe bağlı)
+                try:
+                    import os
+                    os.makedirs('logs', exist_ok=True)
+                    with open('logs/broadcast_log.json', 'a', encoding='utf-8') as f:
+                        f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+                except:
+                    pass  # Log yazma hatası önemli değil
+                
+                print(f"🎯 Duyuru gönderimi tamamlandı: {sent_count}/{total_servers} başarılı")
+                
+                return web.json_response({
+                    'success': True,
+                    'sent_count': sent_count,
+                    'failed_count': failed_count,
+                    'failed_servers': failed_servers[:10],  # İlk 10 başarısız sunucuyu döndür
+                    'total_servers': len(self.bot.guilds),
+                    'success_rate': round((sent_count / total_servers) * 100, 2) if total_servers > 0 else 0,
+                    'estimated_time': f"{total_servers * 1.5 / 60:.1f} dakika sürdü",
+                    'message': f'Duyuru {sent_count}/{len(self.bot.guilds)} sunucuya başarıyla gönderildi'
+                })
+                
+            finally:
+                # Duyuru gönderimini bitir
+                self.broadcast_in_progress = False
+                
         except Exception as e:
+            self.broadcast_in_progress = False
             print(f"Broadcast error: {e}")
             return web.json_response({'error': str(e)}, status=500)
         
-    # Duyuru önizleme endpoint'i
     async def preview_broadcast(self, request):
         """Duyuru mesajının nasıl görüneceğini önizler"""
         try:
@@ -589,6 +634,9 @@ class SimpleAPI(commands.Cog):
             
             if not message:
                 return web.json_response({'error': 'Message required'}, status=400)
+            
+            total_servers = len(self.bot.guilds)
+            estimated_time_minutes = (total_servers * 1.5) / 60  # 1.5 saniye per server
             
             if style == 'embed':
                 preview = {
@@ -609,8 +657,14 @@ class SimpleAPI(commands.Cog):
             return web.json_response({
                 'preview': preview,
                 'character_count': len(message),
-                'estimated_time': len(self.bot.guilds) * 0.5,  # Yaklaşık süre (saniye)
-                'target_servers': len(self.bot.guilds)
+                'estimated_time_minutes': round(estimated_time_minutes, 1),
+                'estimated_time_text': f"{int(estimated_time_minutes)} dakika {int((estimated_time_minutes % 1) * 60)} saniye",
+                'target_servers': total_servers,
+                'rate_limit_info': {
+                    'messages_per_minute': 40,  # 60/1.5
+                    'concurrent_limit': 5,
+                    'delay_between_messages': '1.5 saniye'
+                }
             })
             
         except Exception as e:
