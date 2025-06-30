@@ -169,7 +169,17 @@ async def before_update_server_info():
     await bot.wait_until_ready()
 
 async def load_extensions():
-    for extension in ['extensions.responses', 'extensions.games', 'extensions.economy', 'extensions.takimoyunu', 'extensions.music', 'extensions.oyunbildirim', 'extensions.duel', 'extensions.haberbildirim', 'extensions.reminder', 'extensions.api_endpoints']:
+    for extension in ['extensions.responses', 
+                      'extensions.games', 
+                      'extensions.economy', 
+                      'extensions.takimoyunu', 
+                      'extensions.music', 
+                      'extensions.oyunbildirim', 
+                      'extensions.duel', 
+                      'extensions.haberbildirim', 
+                      'extensions.reminder', 
+                      'extensions.api_endpoints'
+                      ]:
         await bot.load_extension(extension)
 
 async def cleanup():
