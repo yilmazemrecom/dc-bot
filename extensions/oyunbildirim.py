@@ -529,8 +529,9 @@ class Oyunbildirim(commands.Cog):
             )
             
             # Footer - saat, tarih, bot
+            turkey_time = now + timedelta(hours=3)
             embed.set_footer(
-                text=f"🕐 {now.strftime('%H:%M')} • 📅 {now.strftime('%d.%m.%Y')} • 🤖 Çaycı Bot",
+                text=f"🕐 {turkey_time.strftime('%H:%M')} • 📅 {turkey_time.strftime('%d.%m.%Y')} • 🤖 Çaycı Bot",
                 icon_url="https://cdn.discordapp.com/emojis/851461487498821652.png"
             )
             
