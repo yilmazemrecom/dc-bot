@@ -543,7 +543,7 @@ class SimpleAPI(commands.Cog):
                             # 2. "duyuru", "announcement", "announcements" adlı kanallar  
                             # 3. İlk metin kanalı (mesaj gönderme yetkisi olan)
                             
-                            priority_names = ['genel', 'general', 'sohbet', 'chat']
+                            priority_names = ['genel', 'general', 'sohbet', 'chat', 'general-chat', 'main-chat', 'chat-general','genel-sohbet', 'sohbet-genel','genel-chat', 'sohbet-chat']
                             announcement_names = ['duyuru', 'duyurular', 'announcement', 'announcements']
                             
                             # Önce öncelikli kanalları ara
