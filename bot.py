@@ -110,6 +110,10 @@ async def komutlar(interaction: discord.Interaction):
         "🎯 **Mini Oyunlar**\n"
         "**`/bilmece`** • Bilmece çözersin\n"
         "**`/quiz`** • Quiz oynarsın\n\n"
+        "🎉 **Çekiliş Sistemi**\n"
+        "**`/cekilis_basla`** • Çekiliş başlatırsın\n"
+        "**`/cekilis_bitir`** • Çekilişi erkenden bitirirsin\n"
+        "**`/cekilisler`** • Aktif çekilişleri görürsün\n\n"
         "📢 **Bildirimler**\n"
         "**`/oyunbildirimac`** • İndirim bildirimleri\n"
         "**`/haberbildirimac`** • Haber bildirimleri\n\n"
@@ -178,7 +182,8 @@ async def load_extensions():
                       'extensions.duel', 
                       'extensions.haberbildirim', 
                       'extensions.reminder', 
-                      'extensions.api_endpoints'
+                      'extensions.api_endpoints',
+                      'extensions.oyunsecim'
                       ]:
         await bot.load_extension(extension)
 
