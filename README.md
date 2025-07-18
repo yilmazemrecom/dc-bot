@@ -50,7 +50,7 @@ Bu Discord botu, çeşitli eğlence, ekonomi ve müzik özellikleri sunan çok a
 - `/btransfer <kişi> <tutar>` - Para transferi yapar
 - `/siralama` - En zengin 20 kişiyi listeler
 - `/sunucu_sikke_siralamasi` - Sunucudaki sıralamayı gösterir
-- `/dolar` - Güncel dolar kurunu gösterir
+
 
 ### Eğlence Komutları
 - `/bilmece` - Bilmece sorar

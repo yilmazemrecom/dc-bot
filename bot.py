@@ -77,7 +77,6 @@ async def komutlar(interaction: discord.Interaction):
         "**`/bakiye`** • Bakiyenizi gösterir\n"
         "**`/btransfer`** • Para transferi yapar\n"
         "**`/siralama`** • En zenginleri listeler\n"
-        "**`/dolar`** • Döviz kurunu gösterir\n"
         "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
     )
     embed.add_field(
@@ -119,7 +118,9 @@ async def komutlar(interaction: discord.Interaction):
         "**`/haberbildirimac`** • Haber bildirimleri\n\n"
         "⏰ **Hatırlatıcı**\n"
         "**`/hatirlatici_ekle`** • Hatırlatıcı eklersin\n"
-        "**`/hatirlaticilar`** • Hatırlatıcıları görürsün"
+        "**`/hatirlaticilar`** • Hatırlatıcıları görürsün\n"
+        "🎮 **Oyun Seçim Sistemi**\n"
+        "**`/oyunsecim`** • Kararsız kalanlar için oyun seçimi yapar\n"
     )
     embed.add_field(
         name="🎯 Eğlence & Diğer", 

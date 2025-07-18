@@ -229,24 +229,6 @@ class Economy(commands.Cog):
             await db.execute('INSERT OR IGNORE INTO economy (user_id, sunucu_id, bakiye) VALUES (?, ?, 0)', (user_id, server_id))
             await db.commit()
 
-    @app_commands.command(name="dolar", description="1 Dolar'ın TL karşılığını gösterir")
-    async def slash_dolar(self, interaction: discord.Interaction):
-        try:
-            c = CurrencyConverter()
-            amount = c.convert(1, 'USD', 'TRY')
-            embed = discord.Embed(
-                title="💱 Döviz Kuru", 
-                description=f"{interaction.user.mention} 1 dolar **{amount:.2f} TL** ediyor!", 
-                color=discord.Color.green()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        except Exception as e:
-            embed = discord.Embed(
-                title="❌ Hata", 
-                description="Döviz kurunu alırken bir hata oluştu.", 
-                color=discord.Color.red()
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def cog_unload(self):
         # Veritabanı bağlantılarını kapat

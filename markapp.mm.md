@@ -13,9 +13,6 @@ markmap:
 
 ## Genel Komutlar
 - `/komutlar` - Tüm komutları listeler.
-- `çay` - Çay getirir.
-- `çaycı` - Çay mı istediğini sorar.
-- `dolar` - 1 doların kaç TL olduğunu gösterir.
 - `/bakiye` - Bakiyenizi gösterir.
 - `/siralama` - En zengin 20 kişiyi sıralar. Tüm Sunucular.
 - `/oyunbildirimac <#kanal>` - Belirtilen kanal için oyun indirim bildirimlerini açar.
