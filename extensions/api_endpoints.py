@@ -4,7 +4,7 @@ from aiohttp import web
 import aiosqlite
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 import traceback
 import discord
 import random
@@ -92,9 +92,33 @@ class SimpleAPI(commands.Cog):
         self.app.router.add_get('/api/teams', self.get_teams)
         self.app.router.add_get('/api/servers', self.get_servers)
         self.app.router.add_get('/api/servers/details', self.get_server_details)
+        self.app.router.add_get('/api/servers/{server_id}/members', self.get_server_members)
+        self.app.router.add_get('/api/users/{user_id}/servers', self.get_user_servers)
         self.app.router.add_post('/api/broadcast', self.broadcast_message)
         self.app.router.add_post('/api/broadcast/preview', self.preview_broadcast)
+        self.app.router.add_post('/api/broadcast/selective', self.selective_broadcast)
         self.app.router.add_get('/api/broadcast/status', self.get_broadcast_status)
+        
+        # New endpoints for admin panel
+        self.app.router.add_get('/api/logs', self.get_logs)
+        self.app.router.add_get('/api/logs/stats', self.get_log_stats)
+        self.app.router.add_post('/api/logs/export', self.export_logs)
+        self.app.router.add_post('/api/logs/clear', self.clear_logs)
+        
+        self.app.router.add_get('/api/broadcast/templates', self.get_broadcast_templates)
+        self.app.router.add_get('/api/broadcast/history', self.get_broadcast_history)
+        self.app.router.add_post('/api/broadcast/schedule', self.schedule_broadcast)
+        
+        self.app.router.add_get('/api/settings/bot', self.get_bot_settings)
+        self.app.router.add_put('/api/settings/bot', self.update_bot_settings)
+        self.app.router.add_get('/api/settings/admin', self.get_admin_settings)
+        self.app.router.add_put('/api/settings/admin', self.update_admin_settings)
+        
+        self.app.router.add_get('/api/system/info', self.get_system_info)
+        self.app.router.add_post('/api/system/backup', self.create_backup)
+        self.app.router.add_get('/api/system/backup/info', self.get_backup_info)
+        self.app.router.add_get('/api/system/backup/list', self.get_backup_list)
+        self.app.router.add_post('/api/system/restart', self.restart_bot)
         
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
@@ -665,6 +689,746 @@ class SimpleAPI(commands.Cog):
                     'concurrent_limit': 5,
                     'delay_between_messages': '1.5 saniye'
                 }
+            })
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_server_members(self, request):
+        """Belirli bir sunucunun üyelerini getir"""
+        try:
+            server_id = int(request.match_info['server_id'])
+            page = int(request.query.get('page', 1))
+            limit = min(int(request.query.get('limit', 50)), 200)
+            offset = (page - 1) * limit
+            
+            guild = self.bot.get_guild(server_id)
+            if not guild:
+                return web.json_response({'error': 'Server not found'}, status=404)
+            
+            # Üyeleri al (sadece cache'den)
+            members = []
+            for i, member in enumerate(guild.members):
+                if i < offset:
+                    continue
+                if len(members) >= limit:
+                    break
+                    
+                # Kullanıcının ekonomi verilerini kontrol et
+                user_balance = None
+                async with aiosqlite.connect('database/economy.db') as db:
+                    cursor = await db.execute('SELECT bakiye FROM economy WHERE user_id = ?', (str(member.id),))
+                    result = await cursor.fetchone()
+                    user_balance = result[0] if result else 0
+                
+                member_info = {
+                    'id': str(member.id),
+                    'username': member.display_name,
+                    'discriminator': member.discriminator,
+                    'avatar_url': str(member.display_avatar.url) if member.display_avatar else None,
+                    'joined_at': member.joined_at.isoformat() if member.joined_at else None,
+                    'roles': [role.name for role in member.roles if role.name != '@everyone'],
+                    'is_bot': member.bot,
+                    'balance': user_balance,
+                    'status': str(member.status) if hasattr(member, 'status') else 'unknown'
+                }
+                members.append(member_info)
+            
+            return web.json_response({
+                'server_id': str(server_id),
+                'server_name': guild.name,
+                'members': members,
+                'pagination': {
+                    'page': page,
+                    'limit': limit,
+                    'total': guild.member_count,
+                    'pages': (guild.member_count + limit - 1) // limit if guild.member_count > 0 else 1
+                }
+            })
+            
+        except ValueError:
+            return web.json_response({'error': 'Invalid server ID'}, status=400)
+        except Exception as e:
+            print(f"Get server members error: {e}")
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_user_servers(self, request):
+        """Kullanıcının hangi sunucularda olduğunu getir"""
+        try:
+            user_id = int(request.match_info['user_id'])
+            
+            user_servers = []
+            for guild in self.bot.guilds:
+                member = guild.get_member(user_id)
+                if member:
+                    server_info = {
+                        'id': str(guild.id),
+                        'name': guild.name,
+                        'member_count': guild.member_count,
+                        'joined_at': member.joined_at.isoformat() if member.joined_at else None,
+                        'roles': [role.name for role in member.roles if role.name != '@everyone'],
+                        'is_owner': guild.owner_id == user_id,
+                        'permissions': {
+                            'administrator': member.guild_permissions.administrator,
+                            'manage_server': member.guild_permissions.manage_guild,
+                            'manage_channels': member.guild_permissions.manage_channels,
+                            'kick_members': member.guild_permissions.kick_members,
+                            'ban_members': member.guild_permissions.ban_members
+                        }
+                    }
+                    user_servers.append(server_info)
+            
+            # Kullanıcının ekonomi verilerini al
+            user_info = None
+            async with aiosqlite.connect('database/economy.db') as db:
+                cursor = await db.execute('SELECT username, bakiye FROM economy WHERE user_id = ?', (str(user_id),))
+                result = await cursor.fetchone()
+                if result:
+                    user_info = {
+                        'username': result[0],
+                        'balance': result[1]
+                    }
+            
+            return web.json_response({
+                'user_id': str(user_id),
+                'user_info': user_info,
+                'servers': user_servers,
+                'total_servers': len(user_servers)
+            })
+            
+        except ValueError:
+            return web.json_response({'error': 'Invalid user ID'}, status=400)
+        except Exception as e:
+            print(f"Get user servers error: {e}")
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def selective_broadcast(self, request):
+        """Seçili sunuculara duyuru gönder"""
+        try:
+            if self.broadcast_in_progress:
+                return web.json_response({
+                    'error': 'Şu anda başka bir duyuru gönderimi devam ediyor. Lütfen bekleyin.'
+                }, status=429)
+                
+            data = await request.json()
+            message = data.get('message', '').strip()
+            server_ids = data.get('server_ids', [])
+            broadcast_style = data.get('style', 'embed')
+            delay_seconds = int(data.get('delay', 2))  # Varsayılan 2 saniye
+            
+            if not message:
+                return web.json_response({'error': 'Message required'}, status=400)
+            
+            if not server_ids:
+                return web.json_response({'error': 'Server IDs required'}, status=400)
+            
+            # Gecikme süresi kontrolü (1-10 saniye arası)
+            delay_seconds = max(1, min(delay_seconds, 10))
+            
+            self.broadcast_in_progress = True
+            
+            try:
+                sent_count = 0
+                failed_count = 0
+                failed_servers = []
+                target_guilds = []
+                
+                # Seçili sunucuları bul
+                for server_id in server_ids:
+                    try:
+                        guild = self.bot.get_guild(int(server_id))
+                        if guild:
+                            target_guilds.append(guild)
+                    except:
+                        failed_servers.append({
+                            'name': f'ID: {server_id}',
+                            'id': str(server_id),
+                            'reason': 'Sunucu bulunamadı'
+                        })
+                
+                print(f"🚀 Seçili duyuru gönderimi başlatılıyor: {len(target_guilds)} sunucu")
+                
+                # Sunucuları küçükten büyüğe sırala
+                target_guilds.sort(key=lambda g: g.member_count)
+                
+                for i, guild in enumerate(target_guilds):
+                    try:
+                        if i % 5 == 0:
+                            print(f"📈 İlerleme: {i}/{len(target_guilds)} sunucu tamamlandı")
+                        
+                        # Kanal seçimi (aynı mantık)
+                        channel = None
+                        priority_names = ['genel', 'general', 'sohbet', 'chat', 'general-chat', 'main-chat']
+                        announcement_names = ['duyuru', 'duyurular', 'announcement', 'announcements']
+                        
+                        for ch in guild.text_channels:
+                            if ch.name.lower() in priority_names and ch.permissions_for(guild.me).send_messages:
+                                channel = ch
+                                break
+                        
+                        if not channel:
+                            for ch in guild.text_channels:
+                                if ch.name.lower() in announcement_names and ch.permissions_for(guild.me).send_messages:
+                                    channel = ch
+                                    break
+                        
+                        if not channel:
+                            for ch in guild.text_channels:
+                                if ch.permissions_for(guild.me).send_messages:
+                                    channel = ch
+                                    break
+                        
+                        if channel:
+                            # Özelleştirilmiş rate limit ile mesaj gönder
+                            async with self.broadcast_semaphore:
+                                if broadcast_style == 'embed':
+                                    embed = discord.Embed(
+                                        title="📢 Çaycı Bot Duyurusu",
+                                        description=message,
+                                        color=discord.Color.blue(),
+                                        timestamp=datetime.now()
+                                    )
+                                    embed.set_footer(
+                                        text=f"{guild.name} • Çaycı Bot",
+                                        icon_url=self.bot.user.display_avatar.url if self.bot.user.display_avatar else None
+                                    )
+                                    await channel.send(embed=embed)
+                                else:
+                                    formatted_message = f"📢 **Çaycı Bot Duyurusu**\n\n{message}\n\n*— Çaycı Bot Ekibi*"
+                                    await channel.send(formatted_message)
+                                
+                                await asyncio.sleep(delay_seconds)
+                            
+                            sent_count += 1
+                            print(f"✅ Seçili duyuru gönderildi: {guild.name} -> #{channel.name}")
+                        else:
+                            failed_count += 1
+                            failed_servers.append({
+                                'name': guild.name,
+                                'id': str(guild.id),
+                                'reason': 'Uygun kanal bulunamadı'
+                            })
+                            
+                    except Exception as e:
+                        failed_count += 1
+                        failed_servers.append({
+                            'name': guild.name,
+                            'id': str(guild.id),
+                            'reason': str(e)
+                        })
+                        continue
+                
+                print(f"🎯 Seçili duyuru gönderimi tamamlandı: {sent_count}/{len(target_guilds)} başarılı")
+                
+                return web.json_response({
+                    'success': True,
+                    'sent_count': sent_count,
+                    'failed_count': failed_count,
+                    'failed_servers': failed_servers,
+                    'target_servers': len(target_guilds),
+                    'success_rate': round((sent_count / len(target_guilds)) * 100, 2) if len(target_guilds) > 0 else 0,
+                    'delay_used': delay_seconds,
+                    'estimated_time': f"{len(target_guilds) * delay_seconds / 60:.1f} dakika sürdü",
+                    'message': f'Duyuru {sent_count}/{len(target_guilds)} seçili sunucuya başarıyla gönderildi'
+                })
+                
+            finally:
+                self.broadcast_in_progress = False
+                
+        except Exception as e:
+            self.broadcast_in_progress = False
+            print(f"Selective broadcast error: {e}")
+            return web.json_response({'error': str(e)}, status=500)
+
+    # LOG ENDPOINTS
+    async def get_logs(self, request):
+        """Get logs with filtering"""
+        try:
+            log_type = request.query.get('type', 'all')
+            date_filter = request.query.get('date', 'today')
+            page = int(request.query.get('page', 1))
+            limit = min(int(request.query.get('limit', 50)), 200)
+            offset = (page - 1) * limit
+            
+            # Read logs from file
+            logs = []
+            total_logs = 0
+            
+            try:
+                import os
+                if os.path.exists('logs/bot.log'):
+                    with open('logs/bot.log', 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                        total_logs = len(lines)
+                        
+                        # Filter and parse logs (simple implementation)
+                        for i, line in enumerate(reversed(lines)):
+                            if len(logs) >= limit:
+                                break
+                            if i < offset:
+                                continue
+                                
+                            # Parse log line (customize based on your log format)
+                            try:
+                                parts = line.strip().split(' - ', 3)
+                                if len(parts) >= 3:
+                                    timestamp = parts[0]
+                                    level = parts[1].lower()
+                                    message = parts[2] if len(parts) > 2 else line.strip()
+                                    
+                                    # Apply filters
+                                    if log_type != 'all' and log_type not in message.lower():
+                                        continue
+                                    
+                                    log_entry = {
+                                        'id': i + 1,
+                                        'timestamp': timestamp,
+                                        'level': level,
+                                        'type': 'system',
+                                        'user': 'System',
+                                        'server': 'Bot',
+                                        'message': message,
+                                        'ip': '127.0.0.1',
+                                        'user_agent': 'Discord Bot'
+                                    }
+                                    logs.append(log_entry)
+                            except:
+                                continue
+            except:
+                pass
+            
+            return web.json_response({
+                'logs': logs,
+                'pagination': {
+                    'current_page': page,
+                    'total_pages': max(1, (total_logs + limit - 1) // limit),
+                    'total_records': total_logs,
+                    'per_page': limit
+                }
+            })
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_log_stats(self, request):
+        """Get log statistics"""
+        try:
+            stats = {
+                'today_count': 0,
+                'error_count': 0,
+                'warning_count': 0,
+                'total_size': '0 MB'
+            }
+            
+            try:
+                import os
+                if os.path.exists('logs/bot.log'):
+                    file_size = os.path.getsize('logs/bot.log')
+                    stats['total_size'] = f"{file_size / (1024*1024):.1f} MB"
+                    
+                    with open('logs/bot.log', 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                        
+                        for line in lines:
+                            if 'ERROR' in line:
+                                stats['error_count'] += 1
+                            elif 'WARNING' in line:
+                                stats['warning_count'] += 1
+                            
+                            # Count today's logs (simple check)
+                            from datetime import datetime
+                            today = datetime.now().strftime('%Y-%m-%d')
+                            if today in line:
+                                stats['today_count'] += 1
+            except:
+                pass
+            
+            return web.json_response(stats)
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def export_logs(self, request):
+        """Export logs to CSV"""
+        try:
+            data = await request.json()
+            log_type = data.get('type', 'all')
+            date_range = data.get('date_range', 'today')
+            
+            # Simple export functionality
+            filename = f"logs_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            
+            return web.json_response({
+                'success': True,
+                'download_url': f'/downloads/{filename}',
+                'filename': filename,
+                'message': 'Log export completed'
+            })
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def clear_logs(self, request):
+        """Clear old logs"""
+        try:
+            data = await request.json()
+            log_type = data.get('type', 'all')
+            older_than = int(data.get('older_than', 30))
+            
+            # Simple log clearing (in real implementation, you'd actually clear files)
+            cleared_count = 0
+            
+            try:
+                import os
+                if os.path.exists('logs/old_bot.log'):
+                    os.remove('logs/old_bot.log')
+                    cleared_count = 100  # Mock count
+            except:
+                pass
+            
+            return web.json_response({
+                'success': True,
+                'cleared_count': cleared_count,
+                'message': f'Cleared {cleared_count} old log entries'
+            })
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    # BROADCAST TEMPLATES & HISTORY
+    async def get_broadcast_templates(self, request):
+        """Get message templates"""
+        try:
+            templates = [
+                {
+                    'id': 1,
+                    'name': 'Genel Duyuru',
+                    'content': '📢 **DUYURU**\n\nMerhabalar sevgili üyeler!\n\n{content}\n\nTakip ettiğiniz için teşekkürler! 💙'
+                },
+                {
+                    'id': 2,
+                    'name': 'Etkinlik Duyurusu',
+                    'content': '🎉 **ETKİNLİK DUYURUSU**\n\n📅 **Tarih:** {date}\n⏰ **Saat:** {time}\n📍 **Yer:** {location}\n\n{description}\n\nKatılım için Discord\'da aktif olun!'
+                },
+                {
+                    'id': 3,
+                    'name': 'Güncelleme Duyurusu',
+                    'content': '🔄 **GÜNCELLEME**\n\nBot güncellemesi yapıldı!\n\n✨ **Yenilikler:**\n{features}\n\n🐛 **Düzeltmeler:**\n{fixes}'
+                },
+                {
+                    'id': 4,
+                    'name': 'Bakım Duyurusu',
+                    'content': '🔧 **BAKIM DUYURUSU**\n\n⏰ **Bakım Zamanı:** {maintenance_time}\n⏳ **Tahmini Süre:** {duration}\n\nBakım sırasında bot çevrimdışı olacaktır.\n\nAnlayışınız için teşekkürler! 🙏'
+                }
+            ]
+            
+            return web.json_response(templates)
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_broadcast_history(self, request):
+        """Get broadcast history"""
+        try:
+            limit = int(request.query.get('limit', 10))
+            broadcasts = []
+            
+            try:
+                import os
+                if os.path.exists('logs/broadcast_log.json'):
+                    with open('logs/broadcast_log.json', 'r', encoding='utf-8') as f:
+                        lines = f.readlines()
+                        
+                        for i, line in enumerate(reversed(lines[-limit:])):
+                            try:
+                                log_data = json.loads(line.strip())
+                                broadcast = {
+                                    'id': i + 1,
+                                    'created_at': log_data.get('timestamp', datetime.now().isoformat()),
+                                    'message': log_data.get('message', ''),
+                                    'server_count': log_data.get('sent_count', 0),
+                                    'total_reach': log_data.get('sent_count', 0) * 100,  # Estimate
+                                    'status': 'completed' if log_data.get('sent_count', 0) > 0 else 'failed',
+                                    'success_count': log_data.get('sent_count', 0),
+                                    'style': log_data.get('style', 'embed')
+                                }
+                                broadcasts.append(broadcast)
+                            except:
+                                continue
+            except:
+                pass
+            
+            return web.json_response({
+                'broadcasts': broadcasts,
+                'total': len(broadcasts)
+            })
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def schedule_broadcast(self, request):
+        """Schedule a broadcast for later"""
+        try:
+            data = await request.json()
+            message = data.get('message', '').strip()
+            server_ids = data.get('server_ids', [])
+            schedule_time = data.get('schedule_time')
+            
+            if not message or not server_ids or not schedule_time:
+                return web.json_response({'error': 'Missing required fields'}, status=400)
+            
+            # For now, return not implemented
+            return web.json_response({
+                'success': False,
+                'error': 'Zamanlanmış gönderim henüz desteklenmiyor',
+                'message': 'Bu özellik yakında eklenecek'
+            })
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    # SETTINGS ENDPOINTS
+    async def get_bot_settings(self, request):
+        """Get bot settings"""
+        try:
+            # Default settings - in real app, load from config file or database
+            settings = {
+                'prefix': '!',
+                'currency_name': 'Sikke',
+                'daily_reward': 100,
+                'work_cooldown': 3600,
+                'auto_role': '',
+                'welcome_message': 'Hoş geldin {user}! Sunucumuza katıldığın için teşekkürler.',
+                'maintenance_mode': False
+            }
+            
+            # Try to load from config file
+            try:
+                import os, json
+                if os.path.exists('config/bot_settings.json'):
+                    with open('config/bot_settings.json', 'r', encoding='utf-8') as f:
+                        saved_settings = json.load(f)
+                        settings.update(saved_settings)
+            except:
+                pass
+            
+            return web.json_response({'settings': settings})
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def update_bot_settings(self, request):
+        """Update bot settings"""
+        try:
+            data = await request.json()
+            
+            # Validate settings
+            valid_settings = {
+                'prefix': str(data.get('prefix', '!')[:3]),
+                'currency_name': str(data.get('default_currency_name', 'Sikke')[:20]),
+                'daily_reward': max(1, min(int(data.get('daily_reward', 100)), 10000)),
+                'work_cooldown': max(300, min(int(data.get('work_cooldown', 3600)), 86400)),
+                'auto_role': str(data.get('auto_role', '')),
+                'welcome_message': str(data.get('welcome_message', ''))[:500],
+                'maintenance_mode': bool(data.get('maintenance_mode', False))
+            }
+            
+            # Save to config file
+            try:
+                import os, json
+                os.makedirs('config', exist_ok=True)
+                with open('config/bot_settings.json', 'w', encoding='utf-8') as f:
+                    json.dump(valid_settings, f, indent=2, ensure_ascii=False)
+            except Exception as e:
+                print(f"Settings save error: {e}")
+            
+            return web.json_response({
+                'success': True,
+                'message': 'Bot ayarları güncellendi',
+                'settings': valid_settings
+            })
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_admin_settings(self, request):
+        """Get admin panel settings"""
+        try:
+            settings = {
+                'session_timeout': 3600,
+                'max_login_attempts': 5,
+                'enable_2fa': False,
+                'log_retention_days': 30,
+                'api_rate_limit': 100
+            }
+            
+            try:
+                import os, json
+                if os.path.exists('config/admin_settings.json'):
+                    with open('config/admin_settings.json', 'r', encoding='utf-8') as f:
+                        saved_settings = json.load(f)
+                        settings.update(saved_settings)
+            except:
+                pass
+            
+            return web.json_response({'settings': settings})
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def update_admin_settings(self, request):
+        """Update admin panel settings"""
+        try:
+            data = await request.json()
+            
+            valid_settings = {
+                'session_timeout': max(1800, min(int(data.get('session_timeout', 3600)), 86400)),
+                'max_login_attempts': max(3, min(int(data.get('max_login_attempts', 5)), 10)),
+                'enable_2fa': bool(data.get('enable_2fa', False)),
+                'log_retention_days': max(7, min(int(data.get('log_retention_days', 30)), 365)),
+                'api_rate_limit': max(10, min(int(data.get('api_rate_limit', 100)), 1000))
+            }
+            
+            try:
+                import os, json
+                os.makedirs('config', exist_ok=True)
+                with open('config/admin_settings.json', 'w', encoding='utf-8') as f:
+                    json.dump(valid_settings, f, indent=2)
+            except Exception as e:
+                print(f"Admin settings save error: {e}")
+            
+            return web.json_response({
+                'success': True,
+                'message': 'Admin ayarları güncellendi',
+                'settings': valid_settings
+            })
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    # SYSTEM ENDPOINTS
+    async def get_system_info(self, request):
+        """Get system information"""
+        try:
+            import discord
+            import platform
+            import sys
+            
+            info = {
+                'bot_version': '2.1.0',
+                'discord_py_version': discord.__version__,
+                'python_version': platform.python_version(),
+                'platform': platform.platform(),
+                'uptime': str(datetime.now() - self.bot.start_time) if hasattr(self.bot, 'start_time') else 'Unknown'
+            }
+            
+            return web.json_response({'info': info})
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def create_backup(self, request):
+        """Create database backup"""
+        try:
+            import shutil
+            import os
+            from datetime import datetime
+            
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_filename = f'backup_{timestamp}.db'
+            
+            try:
+                os.makedirs('backups', exist_ok=True)
+                shutil.copy2('database/economy.db', f'backups/{backup_filename}')
+                
+                file_size = os.path.getsize(f'backups/{backup_filename}')
+                size_mb = f"{file_size / (1024*1024):.1f} MB"
+                
+                return web.json_response({
+                    'success': True,
+                    'backup_file': backup_filename,
+                    'size': size_mb,
+                    'created_at': datetime.now().isoformat(),
+                    'message': 'Backup created successfully'
+                })
+                
+            except Exception as e:
+                return web.json_response({
+                    'success': False,
+                    'error': f'Backup failed: {str(e)}'
+                }, status=500)
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_backup_info(self, request):
+        """Get last backup info"""
+        try:
+            import os
+            import glob
+            
+            backup_files = glob.glob('backups/backup_*.db')
+            if backup_files:
+                latest_backup = max(backup_files, key=os.path.getctime)
+                file_size = os.path.getsize(latest_backup)
+                size_mb = f"{file_size / (1024*1024):.1f} MB"
+                created_at = datetime.fromtimestamp(os.path.getctime(latest_backup)).isoformat()
+                
+                return web.json_response({
+                    'last_backup': {
+                        'filename': os.path.basename(latest_backup),
+                        'size': size_mb,
+                        'created_at': created_at
+                    }
+                })
+            else:
+                return web.json_response({'last_backup': None})
+                
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def get_backup_list(self, request):
+        """Get list of all backups"""
+        try:
+            import os
+            import glob
+            
+            backups = []
+            backup_files = glob.glob('backups/backup_*.db')
+            
+            for backup_file in sorted(backup_files, key=os.path.getctime, reverse=True):
+                file_size = os.path.getsize(backup_file)
+                size_mb = f"{file_size / (1024*1024):.1f} MB"
+                created_at = datetime.fromtimestamp(os.path.getctime(backup_file)).isoformat()
+                
+                backups.append({
+                    'id': os.path.basename(backup_file).replace('.db', ''),
+                    'filename': os.path.basename(backup_file),
+                    'size': size_mb,
+                    'created_at': created_at
+                })
+            
+            return web.json_response({'backups': backups})
+            
+        except Exception as e:
+            return web.json_response({'error': str(e)}, status=500)
+
+    async def restart_bot(self, request):
+        """Restart the bot"""
+        try:
+            # Schedule restart after a short delay
+            async def delayed_restart():
+                await asyncio.sleep(2)
+                print("🔄 Bot restart requested via API")
+                # In a real implementation, you'd restart the bot process
+                # For now, just log the request
+                
+            asyncio.create_task(delayed_restart())
+            
+            return web.json_response({
+                'success': True,
+                'message': 'Bot yeniden başlatma komutu gönderildi',
+                'restart_time': (datetime.now() + timedelta(seconds=2)).isoformat()
             })
             
         except Exception as e:

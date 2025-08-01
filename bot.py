@@ -4,6 +4,7 @@ from discord.ext import commands, tasks
 import aiosqlite
 import os
 import asyncio
+from datetime import datetime
 from util import init_db, load_economy, save_economy, add_user_to_economy, update_user_server, update_existing_table
 
 PREFIX = '!'
@@ -13,11 +14,17 @@ intents.message_content = True
 
 
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
+bot.start_time = datetime.now()  # Bot başlangıç zamanını kaydet
 
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
     try:
+        # Create necessary directories
+        os.makedirs('logs', exist_ok=True)
+        os.makedirs('config', exist_ok=True)
+        os.makedirs('backups', exist_ok=True)
+        
         await init_db()
         update_server_info.start()
         update_server_count.start()
