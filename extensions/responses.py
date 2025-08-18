@@ -19,13 +19,20 @@ class Responses(commands.Cog):
             "çaycı": "çay mı istiyon? :teapot: ",
         }
 
-        for keyword, response in responses.items():
-            if keyword in content:
-                await message.channel.send(f"{message.author.mention}, {response}")
-                return
+        try:
+            for keyword, response in responses.items():
+                if keyword in content:
+                    await message.channel.send(f"{message.author.mention}, {response}")
+                    return
 
-        if "çay" in content:
-            await message.channel.send("https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727")
+            if "çay" in content:
+                await message.channel.send("https://tenor.com/view/çaylar-çaycıhüseyin-gif-18623727")
+        except discord.Forbidden:
+            # Bot bu kanala mesaj gönderme izni yok - sessizce geç
+            pass
+        except Exception as e:
+            # Diğer hatalar için log
+            print(f"Responses error: {e}")
 
 
 
