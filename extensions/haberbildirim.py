@@ -4,6 +4,7 @@ import requests
 import discord
 from discord.ext import commands, tasks
 import aiosqlite
+import asyncio
 
 
 class HaberBildirim(commands.Cog):
