@@ -338,7 +338,7 @@ class Oyunbildirim(commands.Cog):
         params = {
             'key': API_KEY,
             'country': 'TR',
-            'limit': 500,
+            'limit': 200,
             'sort': 'rank',
             'mature': 'false'
         }
