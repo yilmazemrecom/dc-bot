@@ -10,7 +10,7 @@ import aiofiles
 import asyncio
 import logging
 
-API_URL = 'https://api.isthereanydeal.com/games/overview/v2'
+API_URL = 'https://api.isthereanydeal.com/deals/v2'
 JSON_FILE = 'json/indirim.json'
 logging.basicConfig(level=logging.ERROR)
 
