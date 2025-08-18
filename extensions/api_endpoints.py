@@ -99,18 +99,11 @@ class SimpleAPI(commands.Cog):
         self.app.router.add_post('/api/broadcast/selective', self.selective_broadcast)
         self.app.router.add_get('/api/broadcast/status', self.get_broadcast_status)
         
-        # New endpoints for admin panel
-        self.app.router.add_get('/api/logs', self.get_logs)
-        self.app.router.add_get('/api/logs/stats', self.get_log_stats)
-        self.app.router.add_post('/api/logs/export', self.export_logs)
-        self.app.router.add_post('/api/logs/clear', self.clear_logs)
+        # Log endpoints removed
         
-        self.app.router.add_get('/api/broadcast/templates', self.get_broadcast_templates)
         self.app.router.add_get('/api/broadcast/history', self.get_broadcast_history)
-        self.app.router.add_post('/api/broadcast/schedule', self.schedule_broadcast)
         
-        self.app.router.add_get('/api/settings/bot', self.get_bot_settings)
-        self.app.router.add_put('/api/settings/bot', self.update_bot_settings)
+        # Bot settings endpoints removed - not needed
         self.app.router.add_get('/api/settings/admin', self.get_admin_settings)
         self.app.router.add_put('/api/settings/admin', self.update_admin_settings)
         
@@ -940,192 +933,9 @@ class SimpleAPI(commands.Cog):
             print(f"Selective broadcast error: {e}")
             return web.json_response({'error': str(e)}, status=500)
 
-    # LOG ENDPOINTS
-    async def get_logs(self, request):
-        """Get logs with filtering"""
-        try:
-            log_type = request.query.get('type', 'all')
-            date_filter = request.query.get('date', 'today')
-            page = int(request.query.get('page', 1))
-            limit = min(int(request.query.get('limit', 50)), 200)
-            offset = (page - 1) * limit
-            
-            # Read logs from file
-            logs = []
-            total_logs = 0
-            
-            try:
-                import os
-                if os.path.exists('logs/bot.log'):
-                    with open('logs/bot.log', 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-                        total_logs = len(lines)
-                        
-                        # Filter and parse logs (simple implementation)
-                        for i, line in enumerate(reversed(lines)):
-                            if len(logs) >= limit:
-                                break
-                            if i < offset:
-                                continue
-                                
-                            # Parse log line (customize based on your log format)
-                            try:
-                                parts = line.strip().split(' - ', 3)
-                                if len(parts) >= 3:
-                                    timestamp = parts[0]
-                                    level = parts[1].lower()
-                                    message = parts[2] if len(parts) > 2 else line.strip()
-                                    
-                                    # Apply filters
-                                    if log_type != 'all' and log_type not in message.lower():
-                                        continue
-                                    
-                                    log_entry = {
-                                        'id': i + 1,
-                                        'timestamp': timestamp,
-                                        'level': level,
-                                        'type': 'system',
-                                        'user': 'System',
-                                        'server': 'Bot',
-                                        'message': message,
-                                        'ip': '127.0.0.1',
-                                        'user_agent': 'Discord Bot'
-                                    }
-                                    logs.append(log_entry)
-                            except:
-                                continue
-            except:
-                pass
-            
-            return web.json_response({
-                'logs': logs,
-                'pagination': {
-                    'current_page': page,
-                    'total_pages': max(1, (total_logs + limit - 1) // limit),
-                    'total_records': total_logs,
-                    'per_page': limit
-                }
-            })
-            
-        except Exception as e:
-            return web.json_response({'error': str(e)}, status=500)
+    # Log endpoints removed - not needed
 
-    async def get_log_stats(self, request):
-        """Get log statistics"""
-        try:
-            stats = {
-                'today_count': 0,
-                'error_count': 0,
-                'warning_count': 0,
-                'total_size': '0 MB'
-            }
-            
-            try:
-                import os
-                if os.path.exists('logs/bot.log'):
-                    file_size = os.path.getsize('logs/bot.log')
-                    stats['total_size'] = f"{file_size / (1024*1024):.1f} MB"
-                    
-                    with open('logs/bot.log', 'r', encoding='utf-8') as f:
-                        lines = f.readlines()
-                        
-                        for line in lines:
-                            if 'ERROR' in line:
-                                stats['error_count'] += 1
-                            elif 'WARNING' in line:
-                                stats['warning_count'] += 1
-                            
-                            # Count today's logs (simple check)
-                            from datetime import datetime
-                            today = datetime.now().strftime('%Y-%m-%d')
-                            if today in line:
-                                stats['today_count'] += 1
-            except:
-                pass
-            
-            return web.json_response(stats)
-            
-        except Exception as e:
-            return web.json_response({'error': str(e)}, status=500)
-
-    async def export_logs(self, request):
-        """Export logs to CSV"""
-        try:
-            data = await request.json()
-            log_type = data.get('type', 'all')
-            date_range = data.get('date_range', 'today')
-            
-            # Simple export functionality
-            filename = f"logs_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-            
-            return web.json_response({
-                'success': True,
-                'download_url': f'/downloads/{filename}',
-                'filename': filename,
-                'message': 'Log export completed'
-            })
-            
-        except Exception as e:
-            return web.json_response({'error': str(e)}, status=500)
-
-    async def clear_logs(self, request):
-        """Clear old logs"""
-        try:
-            data = await request.json()
-            log_type = data.get('type', 'all')
-            older_than = int(data.get('older_than', 30))
-            
-            # Simple log clearing (in real implementation, you'd actually clear files)
-            cleared_count = 0
-            
-            try:
-                import os
-                if os.path.exists('logs/old_bot.log'):
-                    os.remove('logs/old_bot.log')
-                    cleared_count = 100  # Mock count
-            except:
-                pass
-            
-            return web.json_response({
-                'success': True,
-                'cleared_count': cleared_count,
-                'message': f'Cleared {cleared_count} old log entries'
-            })
-            
-        except Exception as e:
-            return web.json_response({'error': str(e)}, status=500)
-
-    # BROADCAST TEMPLATES & HISTORY
-    async def get_broadcast_templates(self, request):
-        """Get message templates"""
-        try:
-            templates = [
-                {
-                    'id': 1,
-                    'name': 'Genel Duyuru',
-                    'content': '📢 **DUYURU**\n\nMerhabalar sevgili üyeler!\n\n{content}\n\nTakip ettiğiniz için teşekkürler! 💙'
-                },
-                {
-                    'id': 2,
-                    'name': 'Etkinlik Duyurusu',
-                    'content': '🎉 **ETKİNLİK DUYURUSU**\n\n📅 **Tarih:** {date}\n⏰ **Saat:** {time}\n📍 **Yer:** {location}\n\n{description}\n\nKatılım için Discord\'da aktif olun!'
-                },
-                {
-                    'id': 3,
-                    'name': 'Güncelleme Duyurusu',
-                    'content': '🔄 **GÜNCELLEME**\n\nBot güncellemesi yapıldı!\n\n✨ **Yenilikler:**\n{features}\n\n🐛 **Düzeltmeler:**\n{fixes}'
-                },
-                {
-                    'id': 4,
-                    'name': 'Bakım Duyurusu',
-                    'content': '🔧 **BAKIM DUYURUSU**\n\n⏰ **Bakım Zamanı:** {maintenance_time}\n⏳ **Tahmini Süre:** {duration}\n\nBakım sırasında bot çevrimdışı olacaktır.\n\nAnlayışınız için teşekkürler! 🙏'
-                }
-            ]
-            
-            return web.json_response(templates)
-            
-        except Exception as e:
-            return web.json_response({'error': str(e)}, status=500)
+    # BROADCAST HISTORY
 
     async def get_broadcast_history(self, request):
         """Get broadcast history"""
@@ -1147,7 +957,6 @@ class SimpleAPI(commands.Cog):
                                     'created_at': log_data.get('timestamp', datetime.now().isoformat()),
                                     'message': log_data.get('message', ''),
                                     'server_count': log_data.get('sent_count', 0),
-                                    'total_reach': log_data.get('sent_count', 0) * 100,  # Estimate
                                     'status': 'completed' if log_data.get('sent_count', 0) > 0 else 'failed',
                                     'success_count': log_data.get('sent_count', 0),
                                     'style': log_data.get('style', 'embed')
@@ -1166,90 +975,9 @@ class SimpleAPI(commands.Cog):
         except Exception as e:
             return web.json_response({'error': str(e)}, status=500)
 
-    async def schedule_broadcast(self, request):
-        """Schedule a broadcast for later"""
-        try:
-            data = await request.json()
-            message = data.get('message', '').strip()
-            server_ids = data.get('server_ids', [])
-            schedule_time = data.get('schedule_time')
-            
-            if not message or not server_ids or not schedule_time:
-                return web.json_response({'error': 'Missing required fields'}, status=400)
-            
-            # For now, return not implemented
-            return web.json_response({
-                'success': False,
-                'error': 'Zamanlanmış gönderim henüz desteklenmiyor',
-                'message': 'Bu özellik yakında eklenecek'
-            })
-            
-        except Exception as e:
-            return web.json_response({'error': str(e)}, status=500)
+    # Scheduled broadcast feature removed - not needed
 
-    # SETTINGS ENDPOINTS
-    async def get_bot_settings(self, request):
-        """Get bot settings"""
-        try:
-            # Default settings - in real app, load from config file or database
-            settings = {
-                'prefix': '!',
-                'currency_name': 'Sikke',
-                'daily_reward': 100,
-                'work_cooldown': 3600,
-                'auto_role': '',
-                'welcome_message': 'Hoş geldin {user}! Sunucumuza katıldığın için teşekkürler.',
-                'maintenance_mode': False
-            }
-            
-            # Try to load from config file
-            try:
-                import os, json
-                if os.path.exists('config/bot_settings.json'):
-                    with open('config/bot_settings.json', 'r', encoding='utf-8') as f:
-                        saved_settings = json.load(f)
-                        settings.update(saved_settings)
-            except:
-                pass
-            
-            return web.json_response({'settings': settings})
-            
-        except Exception as e:
-            return web.json_response({'error': str(e)}, status=500)
-
-    async def update_bot_settings(self, request):
-        """Update bot settings"""
-        try:
-            data = await request.json()
-            
-            # Validate settings
-            valid_settings = {
-                'prefix': str(data.get('prefix', '!')[:3]),
-                'currency_name': str(data.get('default_currency_name', 'Sikke')[:20]),
-                'daily_reward': max(1, min(int(data.get('daily_reward', 100)), 10000)),
-                'work_cooldown': max(300, min(int(data.get('work_cooldown', 3600)), 86400)),
-                'auto_role': str(data.get('auto_role', '')),
-                'welcome_message': str(data.get('welcome_message', ''))[:500],
-                'maintenance_mode': bool(data.get('maintenance_mode', False))
-            }
-            
-            # Save to config file
-            try:
-                import os, json
-                os.makedirs('config', exist_ok=True)
-                with open('config/bot_settings.json', 'w', encoding='utf-8') as f:
-                    json.dump(valid_settings, f, indent=2, ensure_ascii=False)
-            except Exception as e:
-                print(f"Settings save error: {e}")
-            
-            return web.json_response({
-                'success': True,
-                'message': 'Bot ayarları güncellendi',
-                'settings': valid_settings
-            })
-            
-        except Exception as e:
-            return web.json_response({'error': str(e)}, status=500)
+    # Bot settings endpoints removed - not needed since they don't affect the bot
 
     async def get_admin_settings(self, request):
         """Get admin panel settings"""
@@ -1315,7 +1043,6 @@ class SimpleAPI(commands.Cog):
             import sys
             
             info = {
-                'bot_version': '2.1.0',
                 'discord_py_version': discord.__version__,
                 'python_version': platform.python_version(),
                 'platform': platform.platform(),
