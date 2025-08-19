@@ -43,9 +43,16 @@ class Music(commands.Cog):
         'default_search': 'auto',
         'source_address': '0.0.0.0',
         'extract_flat': 'in_playlist',
-        'retries': 3,
-        'socket_timeout': 30,
-        'http_timeout': 30
+        'retries': 5,
+        'socket_timeout': 60,
+        'http_timeout': 60,
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'referer': 'https://www.youtube.com/',
+        'extractor_args': {
+            'youtube': {
+                'skip': ['dash', 'hls']
+            }
+        }
     }
 
     ffmpeg_options = {
