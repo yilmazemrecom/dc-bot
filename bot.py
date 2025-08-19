@@ -6,11 +6,13 @@ import os
 import asyncio
 from datetime import datetime
 from util import init_db, load_economy, save_economy, add_user_to_economy, update_user_server, update_existing_table
+from voice_fix import on_ready_voice_fix
 
 PREFIX = '!'
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.voice_states = True
 
 bot = commands.Bot(
     command_prefix=PREFIX, 
@@ -18,7 +20,7 @@ bot = commands.Bot(
     max_messages=1000,
     member_cache_flags=discord.MemberCacheFlags.none(),
     chunk_guilds_at_startup=False,
-    heartbeat_timeout=60.0,
+    heartbeat_timeout=120.0,
     enable_debug_events=False
 )
 
@@ -34,6 +36,9 @@ async def on_ready():
         os.makedirs('logs', exist_ok=True)
         os.makedirs('config', exist_ok=True)
         os.makedirs('backups', exist_ok=True)
+        
+        # Voice connection fix for Google Cloud
+        await on_ready_voice_fix(bot)
         
         await init_db()
         update_server_info.start()

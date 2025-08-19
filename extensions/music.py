@@ -293,7 +293,7 @@ class Music(commands.Cog):
             return
 
         # Bağlantı başarılı ise loading mesajına geç
-        if not hasattr(interaction, '_response_sent') or not interaction._response_sent:
+        if not interaction.response.is_done():
             embed = discord.Embed(title="Şarkı Yükleniyor", description="Lütfen bekleyin...", color=discord.Color.blue())
             await interaction.response.send_message(embed=embed)
         else:
@@ -639,19 +639,22 @@ class Music(commands.Cog):
                         await interaction.edit_original_response(embed=retry_embed)
                         await asyncio.sleep(5)
             elif interaction.guild.voice_client.channel != channel:
-                await interaction.response.send_message(
-                    f"🔒 Bot şu anda başka bir ses kanalında: **{interaction.guild.voice_client.channel.name}**",
-                    ephemeral=True
-                )
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(
+                        f"🔒 Bot şu anda başka bir ses kanalında: **{interaction.guild.voice_client.channel.name}**",
+                        ephemeral=True
+                    )
                 return
         except AttributeError:
-            await interaction.response.send_message("📢 Lütfen önce bir ses kanalına katılın.", ephemeral=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message("📢 Lütfen önce bir ses kanalına katılın.", ephemeral=True)
             return
 
         # Favori verilerini al
         favorites = await self.get_favorites(user_id, guild_id)
         if not favorites:
-            await interaction.response.send_message("📭 Favori listeniz boş!", ephemeral=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message("📭 Favori listeniz boş!", ephemeral=True)
             return
 
         await interaction.response.defer()
