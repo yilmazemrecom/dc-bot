@@ -6,7 +6,7 @@ import os
 import asyncio
 from datetime import datetime
 from util import init_db, load_economy, save_economy, add_user_to_economy, update_user_server, update_existing_table
-from voice_fix import on_ready_voice_fix
+
 
 PREFIX = '!'
 
@@ -37,8 +37,6 @@ async def on_ready():
         os.makedirs('config', exist_ok=True)
         os.makedirs('backups', exist_ok=True)
         
-        # Voice connection fix for Google Cloud
-        await on_ready_voice_fix(bot)
         
         await init_db()
         update_server_info.start()
