@@ -12,9 +12,15 @@ PREFIX = '!'
 intents = discord.Intents.default()
 intents.message_content = True
 
-
-bot = commands.Bot(command_prefix=PREFIX, intents=intents)
-bot.start_time = datetime.now()  # Bot başlangıç zamanını kaydet
+bot = commands.Bot(
+    command_prefix=PREFIX, 
+    intents=intents,
+    max_messages=1000,
+    member_cache_flags=discord.MemberCacheFlags.none(),
+    chunk_guilds_at_startup=False,
+    heartbeat_timeout=60.0
+)
+bot.start_time = datetime.now()
 
 @bot.event
 async def on_ready():
@@ -51,9 +57,38 @@ async def update_server_count():
 
 
 
-@bot.tree.command(name="ping", description="Ping komutu")
+@bot.tree.command(name="ping", description="Ping komutu - Bot gecikmesini gösterir")
 async def slash_ping(interaction: discord.Interaction):
-    await interaction.response.send_message("Pong!")
+    import time
+    start_time = time.perf_counter()
+    
+    embed = discord.Embed(
+        title="🏓 Pong!",
+        color=discord.Color.green()
+    )
+    
+    websocket_ping = round(bot.latency * 1000, 2)
+    embed.add_field(
+        name="📡 WebSocket Gecikmesi",
+        value=f"`{websocket_ping}ms`",
+        inline=True
+    )
+    
+    await interaction.response.send_message(embed=embed)
+    
+    end_time = time.perf_counter()
+    response_time = round((end_time - start_time) * 1000, 2)
+    
+    embed.add_field(
+        name="⚡ Yanıt Süresi",
+        value=f"`{response_time}ms`",
+        inline=True
+    )
+    
+    status_color = discord.Color.green() if websocket_ping < 100 else discord.Color.orange() if websocket_ping < 200 else discord.Color.red()
+    embed.color = status_color
+    
+    await interaction.edit_original_response(embed=embed)
 
 # Slash komutu olarak 'komutlar'
 @bot.tree.command(name="komutlar", description="Tüm komutları listeler")

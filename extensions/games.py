@@ -8,12 +8,16 @@ import json
 import aiofiles
 from discord.ext import commands
 from discord import app_commands
+import time
 
 DATABASE = 'database/economy.db'
 
 class Games(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.yazitura_cooldowns = {}
+        self.YAZITURA_COOLDOWN = 60
+        self.YAZITURA_MAX_BET = 1000
 
     @discord.app_commands.command(name="bilmece", description="Bir bilmece sorar")
     async def slash_bilmece(self, interaction: discord.Interaction):
@@ -147,7 +151,7 @@ class Games(commands.Cog):
 
     @discord.app_commands.command(name="yazitura")
     @discord.app_commands.describe(
-        bahis="Yatırmak istediğiniz sikke miktarı (minimum 10)",
+        bahis="Yatırmak istediğiniz sikke miktarı (minimum 10, maksimum 1000)",
         secim="Yazı mı Tura mı?"
     )
     @discord.app_commands.choices(
@@ -157,11 +161,30 @@ class Games(commands.Cog):
         ]
     )
     async def slash_yazitura(self, interaction: discord.Interaction,
-        bahis: app_commands.Range[int, 10, None],
+        bahis: app_commands.Range[int, 10, 1000],
         secim: str
     ):
+        user_id = interaction.user.id
+        current_time = time.time()
+        
+        if user_id in self.yazitura_cooldowns:
+            time_left = self.YAZITURA_COOLDOWN - (current_time - self.yazitura_cooldowns[user_id])
+            if time_left > 0:
+                embed = discord.Embed(
+                    title="Cooldown Aktif", 
+                    description=f"{interaction.user.mention} Yazı tura oyununu tekrar oynayabilmek için {int(time_left)} saniye bekleyin.", 
+                    color=discord.Color.orange()
+                )
+                await interaction.response.send_message(embed=embed, ephemeral=True)
+                return
+
         if bahis <= 0:
             embed = discord.Embed(title="Hata", description=f"{interaction.user.mention} Geçerli bir bahis miktarı belirtmelisiniz.", color=discord.Color.red())
+            await interaction.response.send_message(embed=embed)
+            return
+
+        if bahis > self.YAZITURA_MAX_BET:
+            embed = discord.Embed(title="Hata", description=f"{interaction.user.mention} Maksimum bahis miktarı {self.YAZITURA_MAX_BET} sikkedir.", color=discord.Color.red())
             await interaction.response.send_message(embed=embed)
             return
 
@@ -184,6 +207,8 @@ class Games(commands.Cog):
             return
 
         yanit = random.choice(["yazı", "tura"])
+
+        self.yazitura_cooldowns[user_id] = current_time
 
         if secim == yanit:
             kazanc = bahis * 2
