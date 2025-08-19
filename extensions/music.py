@@ -46,8 +46,8 @@ class Music(commands.Cog):
     }
 
     ffmpeg_options = {
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-        'options': '-vn'
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 32 -analyzeduration 0',
+        'options': '-vn -bufsize 512k -maxrate 128k'
     }
 
     ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
