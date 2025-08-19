@@ -244,8 +244,17 @@ class Music(commands.Cog):
         try:
             channel = interaction.user.voice.channel
             if interaction.guild.voice_client is None:
-                await channel.connect()
-                state["caller"] = interaction.user
+                # Voice connection with retry mechanism
+                for attempt in range(3):
+                    try:
+                        await asyncio.wait_for(channel.connect(timeout=30.0), timeout=45.0)
+                        state["caller"] = interaction.user
+                        break
+                    except (asyncio.TimeoutError, discord.errors.ConnectionClosed) as e:
+                        if attempt == 2:
+                            await interaction.response.send_message("Ses kanalına bağlanırken hata oluştu. Lütfen tekrar deneyin.", ephemeral=True)
+                            return
+                        await asyncio.sleep(2)
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", ephemeral=True)
                 return
@@ -553,9 +562,18 @@ class Music(commands.Cog):
         try:
             channel = interaction.user.voice.channel
             if interaction.guild.voice_client is None:
-                await channel.connect()
-                state = self.get_guild_state(interaction.guild.id)
-                state["caller"] = interaction.user
+                # Voice connection with retry mechanism
+                for attempt in range(3):
+                    try:
+                        await asyncio.wait_for(channel.connect(timeout=30.0), timeout=45.0)
+                        state = self.get_guild_state(interaction.guild.id)
+                        state["caller"] = interaction.user
+                        break
+                    except (asyncio.TimeoutError, discord.errors.ConnectionClosed) as e:
+                        if attempt == 2:
+                            await interaction.response.send_message("Ses kanalına bağlanırken hata oluştu. Lütfen tekrar deneyin.", ephemeral=True)
+                            return
+                        await asyncio.sleep(2)
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(
                     f"🔒 Bot şu anda başka bir ses kanalında: **{interaction.guild.voice_client.channel.name}**",

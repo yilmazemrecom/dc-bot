@@ -18,8 +18,12 @@ bot = commands.Bot(
     max_messages=1000,
     member_cache_flags=discord.MemberCacheFlags.none(),
     chunk_guilds_at_startup=False,
-    heartbeat_timeout=60.0
+    heartbeat_timeout=60.0,
+    enable_debug_events=False
 )
+
+# Voice connection optimizations
+bot._connection._voice_state_timeout = 120.0
 bot.start_time = datetime.now()
 
 @bot.event
