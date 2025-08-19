@@ -42,22 +42,12 @@ class Music(commands.Cog):
         'no_warnings': True,
         'default_search': 'auto',
         'source_address': '0.0.0.0',
-        'extract_flat': 'in_playlist',
-        'retries': 5,
-        'socket_timeout': 60,
-        'http_timeout': 60,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'referer': 'https://www.youtube.com/',
-        'extractor_args': {
-            'youtube': {
-                'skip': ['dash', 'hls']
-            }
-        }
+        'extract_flat': 'in_playlist'
     }
 
     ffmpeg_options = {
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -probesize 64k -analyzeduration 3000000 -loglevel error',
-        'options': '-vn -bufsize 1024k -maxrate 256k -ar 48000 -ac 2'
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+        'options': '-vn'
     }
 
     ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
@@ -254,44 +244,8 @@ class Music(commands.Cog):
         try:
             channel = interaction.user.voice.channel
             if interaction.guild.voice_client is None:
-                # Voice connection with user-friendly retry
-                connection_embed = discord.Embed(
-                    title="🎵 Ses Kanalına Bağlanıyor...", 
-                    description="Lütfen bekleyin, bağlantı kuruluyor...", 
-                    color=discord.Color.blue()
-                )
-                await interaction.response.send_message(embed=connection_embed)
-                
-                for attempt in range(5):
-                    try:
-                        await asyncio.wait_for(channel.connect(timeout=60.0, reconnect=True), timeout=90.0)
-                        state["caller"] = interaction.user
-                        break
-                    except (asyncio.TimeoutError, discord.errors.ConnectionClosed, Exception) as e:
-                        if attempt == 4:
-                            # Final failure message
-                            error_embed = discord.Embed(
-                                title="⚠️ Müzik Sistemi Hakkında",
-                                description="Sunucumuz uygun fiyatlı olduğundan dolayı Türkiye'de bulunuyor ve Discord yasaklarından ötürü ping sorunu yaşıyoruz.\n\n"
-                                           "Sunucu kiralamak pahalı olduğundan müzik için sorunlar çıkabiliyor. 😅\n\n"
-                                           "**Çözüm önerileri:**\n"
-                                           "• Biraz bekleyip tekrar deneyin\n"
-                                           "• Bazen 2-3 deneme gerekebilir\n"
-                                           "• Anlayışınız için teşekkürler! 🙏",
-                                color=discord.Color.orange()
-                            )
-                            error_embed.set_footer(text="Daha iyi hizmet verebilmek için çalışıyoruz ❤️")
-                            await interaction.edit_original_response(embed=error_embed)
-                            return
-                        
-                        # Show retry attempt
-                        retry_embed = discord.Embed(
-                            title="🔄 Yeniden Deneniyor...",
-                            description=f"Bağlantı kurulamadı, deneme {attempt + 2}/5...",
-                            color=discord.Color.yellow()
-                        )
-                        await interaction.edit_original_response(embed=retry_embed)
-                        await asyncio.sleep(5)
+                await channel.connect()
+                state["caller"] = interaction.user
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", ephemeral=True)
                 return
@@ -299,15 +253,8 @@ class Music(commands.Cog):
             await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
             return
 
-        # Bağlantı başarılı ise loading mesajına geç
-        if not interaction.response.is_done():
-            embed = discord.Embed(title="Şarkı Yükleniyor", description="Lütfen bekleyin...", color=discord.Color.blue())
-            await interaction.response.send_message(embed=embed)
-        else:
-            # Bağlantı mesajını loading'e güncelle
-            embed = discord.Embed(title="✅ Bağlandı! Şarkı Yükleniyor...", description="Lütfen bekleyin...", color=discord.Color.green())
-            await interaction.edit_original_response(embed=embed)
-        
+        embed = discord.Embed(title="Şarkı Yükleniyor", description="Lütfen bekleyin...", color=discord.Color.blue())
+        await interaction.response.send_message(embed=embed)
         loading_message = await interaction.original_response()
         await loading_message.delete(delay=10)
 
@@ -606,62 +553,23 @@ class Music(commands.Cog):
         try:
             channel = interaction.user.voice.channel
             if interaction.guild.voice_client is None:
-                # Voice connection with user-friendly retry  
-                connection_embed = discord.Embed(
-                    title="🎵 Ses Kanalına Bağlanıyor...", 
-                    description="Lütfen bekleyin, bağlantı kuruluyor...", 
-                    color=discord.Color.blue()
-                )
-                await interaction.response.send_message(embed=connection_embed)
-                
-                for attempt in range(3):
-                    try:
-                        await asyncio.wait_for(channel.connect(timeout=30.0), timeout=45.0)
-                        state = self.get_guild_state(interaction.guild.id)
-                        state["caller"] = interaction.user
-                        break
-                    except (asyncio.TimeoutError, discord.errors.ConnectionClosed) as e:
-                        if attempt == 2:
-                            # Final failure message
-                            error_embed = discord.Embed(
-                                title="⚠️ Müzik Sistemi Hakkında",
-                                description="Sunucumuz uygun fiyatlı olduğundan dolayı Türkiye'de bulunuyor ve Discord yasaklarından ötürü ping sorunu yaşıyoruz.\n\n"
-                                           "Sunucu kiralamak pahalı olduğundan müzik için sorunlar çıkabiliyor. 😅\n\n"
-                                           "**Çözüm önerileri:**\n"
-                                           "• Biraz bekleyip tekrar deneyin\n" 
-                                           "• Bazen 2-3 deneme gerekebilir\n"
-                                           "• Anlayışınız için teşekkürler! 🙏",
-                                color=discord.Color.orange()
-                            )
-                            error_embed.set_footer(text="Daha iyi hizmet verebilmek için çalışıyoruz ❤️")
-                            await interaction.edit_original_response(embed=error_embed)
-                            return
-                        
-                        # Show retry attempt
-                        retry_embed = discord.Embed(
-                            title="🔄 Yeniden Deneniyor...",
-                            description=f"Bağlantı kurulamadı, deneme {attempt + 2}/5...",
-                            color=discord.Color.yellow()
-                        )
-                        await interaction.edit_original_response(embed=retry_embed)
-                        await asyncio.sleep(5)
+                await channel.connect()
+                state = self.get_guild_state(interaction.guild.id)
+                state["caller"] = interaction.user
             elif interaction.guild.voice_client.channel != channel:
-                if not interaction.response.is_done():
-                    await interaction.response.send_message(
-                        f"🔒 Bot şu anda başka bir ses kanalında: **{interaction.guild.voice_client.channel.name}**",
-                        ephemeral=True
-                    )
+                await interaction.response.send_message(
+                    f"🔒 Bot şu anda başka bir ses kanalında: **{interaction.guild.voice_client.channel.name}**",
+                    ephemeral=True
+                )
                 return
         except AttributeError:
-            if not interaction.response.is_done():
-                await interaction.response.send_message("📢 Lütfen önce bir ses kanalına katılın.", ephemeral=True)
+            await interaction.response.send_message("📢 Lütfen önce bir ses kanalına katılın.", ephemeral=True)
             return
 
         # Favori verilerini al
         favorites = await self.get_favorites(user_id, guild_id)
         if not favorites:
-            if not interaction.response.is_done():
-                await interaction.response.send_message("📭 Favori listeniz boş!", ephemeral=True)
+            await interaction.response.send_message("📭 Favori listeniz boş!", ephemeral=True)
             return
 
         await interaction.response.defer()
