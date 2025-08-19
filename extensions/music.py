@@ -42,12 +42,15 @@ class Music(commands.Cog):
         'no_warnings': True,
         'default_search': 'auto',
         'source_address': '0.0.0.0',
-        'extract_flat': 'in_playlist'
+        'extract_flat': 'in_playlist',
+        'retries': 3,
+        'socket_timeout': 30,
+        'http_timeout': 30
     }
 
     ffmpeg_options = {
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 -probesize 32 -analyzeduration 0',
-        'options': '-vn -bufsize 512k -maxrate 128k'
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 10 -probesize 64k -analyzeduration 3000000 -loglevel error',
+        'options': '-vn -bufsize 1024k -maxrate 256k -ar 48000 -ac 2'
     }
 
     ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
@@ -252,13 +255,13 @@ class Music(commands.Cog):
                 )
                 await interaction.response.send_message(embed=connection_embed)
                 
-                for attempt in range(3):
+                for attempt in range(5):
                     try:
-                        await asyncio.wait_for(channel.connect(timeout=30.0), timeout=45.0)
+                        await asyncio.wait_for(channel.connect(timeout=60.0, reconnect=True), timeout=90.0)
                         state["caller"] = interaction.user
                         break
-                    except (asyncio.TimeoutError, discord.errors.ConnectionClosed) as e:
-                        if attempt == 2:
+                    except (asyncio.TimeoutError, discord.errors.ConnectionClosed, Exception) as e:
+                        if attempt == 4:
                             # Final failure message
                             error_embed = discord.Embed(
                                 title="⚠️ Müzik Sistemi Hakkında",
@@ -277,11 +280,11 @@ class Music(commands.Cog):
                         # Show retry attempt
                         retry_embed = discord.Embed(
                             title="🔄 Yeniden Deneniyor...",
-                            description=f"Bağlantı kurulamadı, deneme {attempt + 2}/3...",
+                            description=f"Bağlantı kurulamadı, deneme {attempt + 2}/5...",
                             color=discord.Color.yellow()
                         )
                         await interaction.edit_original_response(embed=retry_embed)
-                        await asyncio.sleep(3)
+                        await asyncio.sleep(5)
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", ephemeral=True)
                 return
@@ -630,11 +633,11 @@ class Music(commands.Cog):
                         # Show retry attempt
                         retry_embed = discord.Embed(
                             title="🔄 Yeniden Deneniyor...",
-                            description=f"Bağlantı kurulamadı, deneme {attempt + 2}/3...",
+                            description=f"Bağlantı kurulamadı, deneme {attempt + 2}/5...",
                             color=discord.Color.yellow()
                         )
                         await interaction.edit_original_response(embed=retry_embed)
-                        await asyncio.sleep(3)
+                        await asyncio.sleep(5)
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(
                     f"🔒 Bot şu anda başka bir ses kanalında: **{interaction.guild.voice_client.channel.name}**",
