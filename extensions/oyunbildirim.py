@@ -341,7 +341,7 @@ class Oyunbildirim(commands.Cog):
             'limit': 200,
             'sort': 'rank',
             'mature': 'false',
-            'shop': '61,48,16'
+            'shops': '61,48,16'
         }
         try:
             async with aiohttp.ClientSession() as session:
