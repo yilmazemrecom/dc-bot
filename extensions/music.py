@@ -18,7 +18,6 @@ class Music(commands.Cog):
         self.guild_states = {}
         self.check_voice_channel.start()
 
-
     def get_guild_state(self, guild_id):
         if guild_id not in self.guild_states:
             self.guild_states[guild_id] = {
@@ -65,10 +64,14 @@ class Music(commands.Cog):
         @classmethod
         async def from_url(cls, url, *, loop=None, stream=False):
             loop = loop or asyncio.get_event_loop()
-            data = await loop.run_in_executor(
-            None,
-            functools.partial(Music.ytdl.extract_info, url, download=not stream)
-            )
+            try:
+                data = await loop.run_in_executor(
+                    None,
+                    functools.partial(Music.ytdl.extract_info, url, download=not stream)
+                )
+            except Exception as e:
+                print(f"YTDL from_url hata: {e}")
+                return None
 
             if not data:
                 return None
@@ -85,8 +88,8 @@ class Music(commands.Cog):
             loop = loop or asyncio.get_event_loop()
             try:
                 data = await loop.run_in_executor(
-                None,
-                functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
+                    None,
+                    functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
                 )
                 if not data:
                     return None
@@ -98,9 +101,9 @@ class Music(commands.Cog):
                 print(f"Hata yakalandı: {e}")
                 if "MESAM / MSG CS" in str(e) or "unavailable" in str(e):
                     print(f"Skipping blocked video: {entry['url']}")
-                    return None  
+                    return None
                 else:
-                    raise 
+                    raise
 
     async def play_next(self, interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -111,7 +114,7 @@ class Music(commands.Cog):
                 source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
                 if source:
                     view = self.get_control_buttons(interaction)
-
+                    # ✅ after callback: extra keyword args yutuluyor
                     interaction.guild.voice_client.play(
                         source,
                         after=lambda e, **_: asyncio.run_coroutine_threadsafe(
@@ -119,7 +122,6 @@ class Music(commands.Cog):
                             self.bot.loop
                         )
                     )
-
                     embed = discord.Embed(
                         title="Şu anda Çalan Şarkı",
                         description=state["current_player"]['title'],
@@ -138,7 +140,6 @@ class Music(commands.Cog):
             if state["current_message"]:
                 await state["current_message"].delete()
                 state["current_message"] = None
-
 
     async def play_next_after_callback(self, interaction):
         await self.play_next(interaction)
