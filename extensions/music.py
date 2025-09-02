@@ -9,6 +9,7 @@ import aiosqlite
 from typing import Optional
 from discord import app_commands
 import random
+import functools # Bunu en üste ekleyin
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -328,12 +329,10 @@ class Music(commands.Cog):
         loading_message = await interaction.original_response()
 
         try:
-            # Lambda fonksiyonu yerine doğrudan fonksiyon çağrısı
+            # functools.partial kullanarak hatayı çözüyoruz
             loop = asyncio.get_event_loop()
-            def extract_info():
-                return self.ytdl.extract_info(sarki, download=False)
-            
-            data = await loop.run_in_executor(None, extract_info)
+            partial_extract = functools.partial(self.ytdl.extract_info, sarki, download=False)
+            data = await loop.run_in_executor(None, partial_extract)
             
             if not data:
                 await loading_message.edit(
@@ -663,12 +662,10 @@ class Music(commands.Cog):
                 failed_songs.append(title)
                 continue
             try:
-                # Lambda yerine doğrudan fonksiyon çağrısı
+                # functools.partial kullanarak hatayı çözüyoruz
                 loop = asyncio.get_event_loop()
-                def extract_info():
-                    return self.ytdl.extract_info(url, download=False)
-                
-                data = await loop.run_in_executor(None, extract_info)
+                partial_extract = functools.partial(self.ytdl.extract_info, url, download=False)
+                data = await loop.run_in_executor(None, partial_extract)
                 
                 if not data:
                     failed_songs.append(title)
