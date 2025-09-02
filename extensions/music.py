@@ -152,13 +152,15 @@ class Music(commands.Cog):
                     view = self.get_control_buttons(interaction)
                     
                     try:
-                        interaction.guild.voice_client.play(
-                            source, 
-                            after=lambda e: asyncio.run_coroutine_threadsafe(
+                        def after_callback(error):
+                            if error:
+                                print(f"Player error: {error}")
+                            asyncio.run_coroutine_threadsafe(
                                 self.play_next_after_callback(interaction), 
                                 self.bot.loop
                             )
-                        )
+                        
+                        interaction.guild.voice_client.play(source, after=after_callback)
                         
                         embed = discord.Embed(
                             title="🎵 Şu anda Çalan Şarkı", 
@@ -385,11 +387,23 @@ class Music(commands.Cog):
         queue_button = Button(emoji="📋", style=discord.ButtonStyle.secondary)
         favorite_button = Button(emoji="❤️", style=discord.ButtonStyle.success)
         
-        stop_button.callback = lambda i: self.button_stop_callback(i)
-        pause_button.callback = lambda i: self.button_pause_callback(i)
-        skip_button.callback = lambda i: self.button_skip_callback(i)
-        queue_button.callback = lambda i: self.button_queue_callback(i)
-        favorite_button.callback = lambda i: self.button_favorite_callback(i)
+        # Lambda yerine async def kullanalım
+        async def stop_callback(i):
+            await self.button_stop_callback(i)
+        async def pause_callback(i):
+            await self.button_pause_callback(i)
+        async def skip_callback(i):
+            await self.button_skip_callback(i)
+        async def queue_callback(i):
+            await self.button_queue_callback(i)
+        async def favorite_callback(i):
+            await self.button_favorite_callback(i)
+            
+        stop_button.callback = stop_callback
+        pause_button.callback = pause_callback
+        skip_button.callback = skip_callback
+        queue_button.callback = queue_callback
+        favorite_button.callback = favorite_callback
 
         view.add_item(stop_button)
         view.add_item(pause_button)
@@ -649,7 +663,23 @@ class Music(commands.Cog):
                 failed_songs.append(title)
                 continue
             try:
-                entries = await self.YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
+                # Lambda yerine doğrudan fonksiyon çağrısı
+                loop = asyncio.get_event_loop()
+                def extract_info():
+                    return self.ytdl.extract_info(url, download=False)
+                
+                data = await loop.run_in_executor(None, extract_info)
+                
+                if not data:
+                    failed_songs.append(title)
+                    continue
+                    
+                # Entries oluştur
+                if 'entries' in data:
+                    entries = [entry for entry in data['entries'] if entry and entry.get('url')]
+                else:
+                    entries = [data]
+                    
                 if entries and len(entries) > 0:
                     async with state["queue_lock"]:
                         state["queue"].append(entries[0])
