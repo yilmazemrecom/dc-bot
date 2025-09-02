@@ -84,7 +84,10 @@ class Music(commands.Cog):
         async def create_source(cls, entry, *, loop=None):
             loop = loop or asyncio.get_event_loop()
             try:
-                data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(entry['url'], download=False))
+                data = await loop.run_in_executor(
+                None,
+                functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
+                )
                 if not data:
                     return None
                 if 'url' in data:
