@@ -103,7 +103,12 @@ class Music(commands.Cog):
                 source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
                 if source:
                     view = self.get_control_buttons(interaction)
-                    interaction.guild.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(self.play_next_after_callback(interaction), self.bot.loop))
+                    interaction.guild.voice_client.play(
+                        source,
+                        after=lambda error: asyncio.run_coroutine_threadsafe(
+                            self.play_next_after_callback(interaction), self.bot.loop
+                        )
+                    )
                     embed = discord.Embed(title="Şu anda Çalan Şarkı", description=state["current_player"]['title'], color=discord.Color.green())
                     embed.set_thumbnail(url=source.thumbnail)
                     if state["current_message"]:
