@@ -230,7 +230,6 @@ async def load_extensions():
                       'extensions.music', 
                       'extensions.oyunbildirim', 
                       'extensions.duel', 
-                      'extensions.haberbildirim', 
                       'extensions.reminder', 
                       'extensions.api_endpoints',
                       'extensions.oyunsecim'
