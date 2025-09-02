@@ -9,6 +9,8 @@ import aiosqlite
 from typing import Optional
 from discord import app_commands
 import random
+import functools
+
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -63,7 +65,10 @@ class Music(commands.Cog):
         @classmethod
         async def from_url(cls, url, *, loop=None, stream=False):
             loop = loop or asyncio.get_event_loop()
-            data = await loop.run_in_executor(None, lambda: Music.ytdl.extract_info(url, download=not stream))
+            data = await loop.run_in_executor(
+            None,
+            functools.partial(Music.ytdl.extract_info, url, download=not stream)
+            )
 
             if not data:
                 return None
