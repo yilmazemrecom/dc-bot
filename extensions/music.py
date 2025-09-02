@@ -432,7 +432,7 @@ class Music(commands.Cog):
         if member.id != self.bot.user.id:
             return
 
-        state = self.get_guild_state(member.guild.id)
+        # Bot voice state değişikliği - kanaldan ayrıldı
         if before.channel is not None and after.channel is None:
             await self.cleanup_guild_state(member.guild.id)
 
