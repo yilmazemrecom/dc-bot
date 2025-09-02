@@ -9,7 +9,7 @@ import aiosqlite
 from typing import Optional
 from discord import app_commands
 import random
-import functools # Bunu en üste ekleyin
+import functools
 
 class Music(commands.Cog):
     def __init__(self, bot):
@@ -77,10 +77,9 @@ class Music(commands.Cog):
         async def from_url(cls, url, *, loop=None, stream=False):
             loop = loop or asyncio.get_event_loop()
             try:
-                def extract_info():
-                    return Music.ytdl.extract_info(url, download=not stream)
-                
-                data = await loop.run_in_executor(None, extract_info)
+                # functools.partial kullanarak hatayı çözüyoruz
+                partial_extract = functools.partial(Music.ytdl.extract_info, url, download=not stream)
+                data = await loop.run_in_executor(None, partial_extract)
             except Exception as e:
                 print(f"URL çıkarma hatası: {e}")
                 return None
@@ -101,10 +100,9 @@ class Music(commands.Cog):
             
             for attempt in range(retries):
                 try:
-                    def extract_info():
-                        return Music.ytdl.extract_info(entry['url'], download=False)
-                    
-                    data = await loop.run_in_executor(None, extract_info)
+                    # functools.partial kullanarak hatayı çözüyoruz
+                    partial_extract = functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
+                    data = await loop.run_in_executor(None, partial_extract)
                     
                     if not data or 'url' not in data:
                         if attempt < retries - 1:
@@ -330,9 +328,8 @@ class Music(commands.Cog):
 
         try:
             # functools.partial kullanarak hatayı çözüyoruz
-            loop = asyncio.get_event_loop()
             partial_extract = functools.partial(self.ytdl.extract_info, sarki, download=False)
-            data = await loop.run_in_executor(None, partial_extract)
+            data = await self.bot.loop.run_in_executor(None, partial_extract)
             
             if not data:
                 await loading_message.edit(
@@ -663,9 +660,8 @@ class Music(commands.Cog):
                 continue
             try:
                 # functools.partial kullanarak hatayı çözüyoruz
-                loop = asyncio.get_event_loop()
                 partial_extract = functools.partial(self.ytdl.extract_info, url, download=False)
-                data = await loop.run_in_executor(None, partial_extract)
+                data = await self.bot.loop.run_in_executor(None, partial_extract)
                 
                 if not data:
                     failed_songs.append(title)
