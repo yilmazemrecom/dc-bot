@@ -46,7 +46,7 @@ class Music(commands.Cog):
     }
 
     ffmpeg_options = {
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', # Ensure this key is 'before_options' and not 'before'
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
         'options': '-vn'
     }
 
@@ -103,13 +103,20 @@ class Music(commands.Cog):
                 source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
                 if source:
                     view = self.get_control_buttons(interaction)
+
                     interaction.guild.voice_client.play(
                         source,
-                        after=lambda error: asyncio.run_coroutine_threadsafe(
-                            self.play_next_after_callback(interaction), self.bot.loop
+                        after=lambda e, **_: asyncio.run_coroutine_threadsafe(
+                            self.play_next_after_callback(interaction),
+                            self.bot.loop
                         )
                     )
-                    embed = discord.Embed(title="Şu anda Çalan Şarkı", description=state["current_player"]['title'], color=discord.Color.green())
+
+                    embed = discord.Embed(
+                        title="Şu anda Çalan Şarkı",
+                        description=state["current_player"]['title'],
+                        color=discord.Color.green()
+                    )
                     embed.set_thumbnail(url=source.thumbnail)
                     if state["current_message"]:
                         await state["current_message"].edit(embed=embed, view=view)
@@ -123,6 +130,7 @@ class Music(commands.Cog):
             if state["current_message"]:
                 await state["current_message"].delete()
                 state["current_message"] = None
+
 
     async def play_next_after_callback(self, interaction):
         await self.play_next(interaction)
