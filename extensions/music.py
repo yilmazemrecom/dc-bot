@@ -118,17 +118,19 @@ class Music(commands.Cog):
                     )
                     embed = discord.Embed(
                         title="Şu anda Çalan Şarkı",
-                        description=state["current_player"]['title'],
+                        description=source.title,
                         color=discord.Color.green()
                     )
                     embed.set_thumbnail(url=source.thumbnail)
+                    
+                    # Try to delete the old message first, then send a new one.
                     if state["current_message"]:
                         try:
-                            await state["current_message"].edit(embed=embed, view=view)
+                            await state["current_message"].delete()
                         except discord.errors.NotFound:
-                            state["current_message"] = await interaction.channel.send(embed=embed, view=view)
-                    else:
-                        state["current_message"] = await interaction.channel.send(embed=embed, view=view)
+                            pass
+                    
+                    state["current_message"] = await interaction.channel.send(embed=embed, view=view)
                 else:
                     await self.prepare_next_song(interaction)
         else:
@@ -195,7 +197,6 @@ class Music(commands.Cog):
             try:
                 await interaction.response.send_message("⏹️ Müzik durduruldu", ephemeral=True)
             except discord.errors.InteractionResponded:
-                # This can happen if the interaction is acknowledged by another process, which is fine.
                 pass
 
     async def button_favorite_callback(self, interaction: discord.Interaction):
@@ -257,6 +258,13 @@ class Music(commands.Cog):
         await interaction.response.send_message(f"🎶 **{sarki}** aranıyor...")
         loading_message = await interaction.original_response()
 
+        async def delete_message(message, delay):
+            await asyncio.sleep(delay)
+            try:
+                await message.delete()
+            except discord.errors.NotFound:
+                pass
+
         try:
             entries = await self.YTDLSource.from_url(sarki, loop=self.bot.loop, stream=True)
             if entries:
@@ -264,28 +272,24 @@ class Music(commands.Cog):
                     state["queue"].extend(entries)
                 
                 await loading_message.edit(content=f"✅ **{len(entries)}** şarkı sıraya eklendi.")
+                self.bot.loop.create_task(delete_message(loading_message, 30))
 
                 if not state["is_playing"]:
                     await self.prepare_next_song(interaction)
             else:
                 await loading_message.edit(content="❌ Playlistte veya linkte geçerli şarkı bulunamadı.")
-                state["queue"].clear()
-                state["is_playing"] = False
-                if state["current_message"]:
-                    try:
-                        await state["current_message"].delete()
-                    except discord.errors.NotFound:
-                        pass
-                    state["current_message"] = None
-                if interaction.guild.voice_client:
+                self.bot.loop.create_task(delete_message(loading_message, 30))
+                if not state["queue"] and interaction.guild.voice_client:
                     await interaction.guild.voice_client.disconnect()
 
         except Exception as e:
-            await loading_message.edit(content=f"❌ Şarkı bilgisi alınırken bir hata oluştu: {e}")
+            await loading_message.edit(content=f"❌ Şarkı bilgisi alınırken bir hata oluştu.")
+            self.bot.loop.create_task(delete_message(loading_message, 30))
+            print(f"Error in slash_cal: {e}")
             return
 
     def get_control_buttons(self, interaction):
-        view = discord.ui.View(timeout=None) # Persistent view
+        view = discord.ui.View(timeout=None)
         
         stop_button = Button(emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="music_stop")
         stop_button.callback = self.button_stop_callback
@@ -332,34 +336,12 @@ class Music(commands.Cog):
                 current_page = 0
                 embed = discord.Embed(title="Sıradaki Şarkılar", description=pages[current_page], color=discord.Color.blue())
 
-                async def next_callback(interaction):
-                    nonlocal current_page, view
-                    if current_page < len(pages) - 1:
-                        current_page += 1
-                        embed.description = pages[current_page]
-                        await interaction.response.edit_message(embed=embed, view=view)
-
-                async def previous_callback(interaction):
-                    nonlocal current_page, view
-                    if current_page > 0:
-                        current_page -= 1
-                        embed.description = pages[current_page]
-                        await interaction.response.edit_message(embed=embed, view=view)
-
-                next_button = Button(label="İleri", style=discord.ButtonStyle.primary)
-                previous_button = Button(label="Geri", style=discord.ButtonStyle.primary)
-
-                next_button.callback = next_callback
-                previous_button.callback = previous_callback
-
-                view = View()
-                view.add_item(previous_button)
-                view.add_item(next_button)
-                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+                # Using a view class for pagination is better
+                await interaction.response.send_message(embed=embed, view=QueueView(pages), ephemeral=True)
             else:
-                await interaction.response.send_message("Sırada şarkı yok.", ephemeral=True)
+                await interaction.response.send_message("Sırada şarkı yok.", ephemeral=True, delete_after=30)
         else:
-            await interaction.response.send_message("Bot bir ses kanalında değil.", ephemeral=True)
+            await interaction.response.send_message("Bot bir ses kanalında değil.", ephemeral=True, delete_after=30)
 
 
     @commands.Cog.listener()
@@ -375,7 +357,7 @@ class Music(commands.Cog):
                 try:
                     await state["current_message"].delete()
                 except discord.errors.NotFound:
-                    pass # Message already deleted
+                    pass
                 finally:
                     state["current_message"] = None
             
@@ -414,8 +396,8 @@ class Music(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        # This listener was causing interaction conflicts.
-        # The button callbacks now handle their own responses.
+        # This listener was causing interaction conflicts and is no longer needed
+        # with persistent views and proper callbacks.
         pass
 
     def cog_unload(self):
@@ -689,7 +671,7 @@ class Music(commands.Cog):
             await interaction.response.send_message(embed=error_embed, ephemeral=True)
 
 class QueueView(discord.ui.View):
-    def __init__(self, pages, timeout=30):
+    def __init__(self, pages, timeout=120):
         super().__init__(timeout=timeout)
         self.pages = pages
         self.current_page = 0
@@ -711,7 +693,11 @@ class QueueView(discord.ui.View):
     async def on_timeout(self):
         for item in self.children:
             item.disabled = True
-        await self.message.edit(view=self)
+        try:
+            if self.message:
+                await self.message.edit(view=self)
+        except discord.errors.NotFound:
+            pass
 
 class FavoritesView(discord.ui.View):
     def __init__(self, pages):
@@ -745,9 +731,4 @@ class FavoritesView(discord.ui.View):
             await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
 
 async def setup(bot):
-    # To make views persistent, the bot needs to have this setup function.
-    # We also need to register the view with the bot before it starts.
-    # This part is more complex and requires changes in the main bot file as well.
-    # For now, the views will work but will not be persistent across bot restarts.
-    bot.add_view(Music(bot).get_control_buttons(None)) # This is not correct, but illustrates the point
     await bot.add_cog(Music(bot))
