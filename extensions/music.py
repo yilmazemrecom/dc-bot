@@ -30,7 +30,7 @@ class Music(commands.Cog):
             }
         return self.guild_states[guild_id]
 
-    youtube_dl.utils.bug_reports_message = lambda: ''
+    
 
     ytdl_format_options = {
         'format': 'bestaudio/best',
