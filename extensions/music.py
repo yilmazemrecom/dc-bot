@@ -123,7 +123,6 @@ class Music(commands.Cog):
                     )
                     embed.set_thumbnail(url=source.thumbnail)
                     
-                    # Try to delete the old message first, then send a new one.
                     if state["current_message"]:
                         try:
                             await state["current_message"].delete()
@@ -174,15 +173,15 @@ class Music(commands.Cog):
     async def button_pause_callback(self, interaction: discord.Interaction):
         if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
             interaction.guild.voice_client.pause()
-            await interaction.response.send_message("⏸️ Şarkı duraklatıldı", ephemeral=True)
+            await interaction.response.send_message("⏸️ Şarkı duraklatıldı", ephemeral=True, delete_after=10)
         elif interaction.guild.voice_client and interaction.guild.voice_client.is_paused():
             interaction.guild.voice_client.resume()
-            await interaction.response.send_message("▶️ Şarkı devam ediyor", ephemeral=True)
+            await interaction.response.send_message("▶️ Şarkı devam ediyor", ephemeral=True, delete_after=10)
 
     async def button_skip_callback(self, interaction: discord.Interaction):
         if interaction.guild.voice_client:
             interaction.guild.voice_client.stop()
-            await interaction.response.send_message("⏭️ Şarkı geçildi", ephemeral=True)
+            await interaction.response.send_message("⏭️ Şarkı geçildi", ephemeral=True, delete_after=10)
 
     async def button_stop_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -195,7 +194,7 @@ class Music(commands.Cog):
                 print("Voice client disconnect timed out, but state is cleared.")
             
             try:
-                await interaction.response.send_message("⏹️ Müzik durduruldu", ephemeral=True)
+                await interaction.response.send_message("⏹️ Müzik durduruldu", ephemeral=True, delete_after=10)
             except discord.errors.InteractionResponded:
                 pass
 
@@ -212,8 +211,8 @@ class Music(commands.Cog):
         guild_id = str(interaction.guild.id)
         try:
             await interaction.response.defer(ephemeral=True)
-            if await self.is_favorite(user_id, current_song['url']):
-                await self.remove_favorite(user_id, current_song['url'])
+            if await self.is_favorite(user_id, current_song['url'], guild_id):
+                await self.remove_favorite(user_id, current_song['url'], guild_id)
                 await interaction.followup.send("💔 Şarkı favorilerden çıkarıldı!", ephemeral=True)
             else:
                 await self.add_favorite(user_id, guild_id, current_song['title'], current_song['url'])
@@ -289,7 +288,7 @@ class Music(commands.Cog):
             return
 
     def get_control_buttons(self, interaction):
-        view = discord.ui.View(timeout=None)
+        view = discord.ui.View(timeout=None) 
         
         stop_button = Button(emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="music_stop")
         stop_button.callback = self.button_stop_callback
@@ -336,7 +335,6 @@ class Music(commands.Cog):
                 current_page = 0
                 embed = discord.Embed(title="Sıradaki Şarkılar", description=pages[current_page], color=discord.Color.blue())
 
-                # Using a view class for pagination is better
                 await interaction.response.send_message(embed=embed, view=QueueView(pages), ephemeral=True)
             else:
                 await interaction.response.send_message("Sırada şarkı yok.", ephemeral=True, delete_after=30)
@@ -396,8 +394,6 @@ class Music(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        # This listener was causing interaction conflicts and is no longer needed
-        # with persistent views and proper callbacks.
         pass
 
     def cog_unload(self):
@@ -416,12 +412,12 @@ class Music(commands.Cog):
             ''', (user_id, guild_id, song_title, song_url))
             await db.commit()
 
-    async def remove_favorite(self, user_id: str, song_url: str):
+    async def remove_favorite(self, user_id: str, song_url: str, guild_id: str):
         async with aiosqlite.connect('database/economy.db') as db:
             await db.execute ('''
                 DELETE FROM favorite_songs 
-                WHERE user_id = ? AND song_url = ?
-            ''', (user_id, song_url))
+                WHERE user_id = ? AND song_url = ? AND guild_id = ?
+            ''', (user_id, song_url, guild_id))
             await db.commit()
 
     async def get_favorites(self, user_id: str, guild_id: str):
@@ -438,12 +434,12 @@ class Music(commands.Cog):
             print(f"Veritabanı hatası (get_favorites): {e}")
             return []
 
-    async def is_favorite(self, user_id: str, song_url: str):
+    async def is_favorite(self, user_id: str, song_url: str, guild_id: str):
         async with aiosqlite.connect('database/economy.db') as db:
             async with db.execute ('''
                 SELECT 1 FROM favorite_songs 
-                WHERE user_id = ? AND song_url = ?
-            ''', (user_id, song_url)) as cursor:
+                WHERE user_id = ? AND song_url = ? AND guild_id = ?
+            ''', (user_id, song_url, guild_id)) as cursor:
                 return await cursor.fetchone() is not None
 
     @discord.app_commands.command(name="favori", description="Şarkıyı favorilere ekler")
@@ -455,8 +451,8 @@ class Music(commands.Cog):
         current_song = state["current_player"]
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
-        if await self.is_favorite(user_id, current_song['url']):
-            await self.remove_favorite(user_id, current_song['url'])
+        if await self.is_favorite(user_id, current_song['url'], guild_id):
+            await self.remove_favorite(user_id, current_song['url'], guild_id)
             await interaction.response.send_message("Şarkı favorilerden çıkarıldı!", ephemeral=True)
         else:
             await self.add_favorite(user_id, guild_id, current_song['title'], current_song['url'])
@@ -620,7 +616,7 @@ class Music(commands.Cog):
             return
         try:
             selected_song = favorites[sira_no - 1]
-            await self.remove_favorite(user_id, selected_song[1])
+            await self.remove_favorite(user_id, selected_song[1], guild_id)
             embed = discord.Embed(
                 title="Favori Şarkı Silindi", 
                 description=f"{selected_song[0]} favori listenizden kaldırıldı.", 
