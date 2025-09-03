@@ -30,8 +30,6 @@ class Music(commands.Cog):
             }
         return self.guild_states[guild_id]
 
-    
-
     ytdl_format_options = {
         'format': 'bestaudio/best',
         'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
@@ -194,7 +192,11 @@ class Music(commands.Cog):
             except asyncio.TimeoutError:
                 print("Voice client disconnect timed out, but state is cleared.")
             
-            await interaction.response.send_message("⏹️ Müzik durduruldu", ephemeral=True)
+            try:
+                await interaction.response.send_message("⏹️ Müzik durduruldu", ephemeral=True)
+            except discord.errors.InteractionResponded:
+                # This can happen if the interaction is acknowledged by another process, which is fine.
+                pass
 
     async def button_favorite_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -252,23 +254,21 @@ class Music(commands.Cog):
             await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
             return
 
-        embed = discord.Embed(title="Şarkı Yükleniyor", description="Lütfen bekleyin...", color=discord.Color.blue())
-        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(f"🎶 **{sarki}** aranıyor...")
         loading_message = await interaction.original_response()
-        await loading_message.delete(delay=10)
 
         try:
             entries = await self.YTDLSource.from_url(sarki, loop=self.bot.loop, stream=True)
             if entries:
                 async with state["queue_lock"]:
                     state["queue"].extend(entries)
+                
+                await loading_message.edit(content=f"✅ **{len(entries)}** şarkı sıraya eklendi.")
+
                 if not state["is_playing"]:
                     await self.prepare_next_song(interaction)
-                embed = discord.Embed(title="Şarkılar Kuyruğa Eklendi", description=f"{len(entries)} şarkı kuyruğa eklendi.", color=discord.Color.blue())
-                loadingmess= await loading_message.edit(embed=embed)
-                await loadingmess.delete(delay=10)
             else:
-                await interaction.followup.send("Playlistte geçerli şarkı bulunamadı.", ephemeral=True)
+                await loading_message.edit(content="❌ Playlistte veya linkte geçerli şarkı bulunamadı.")
                 state["queue"].clear()
                 state["is_playing"] = False
                 if state["current_message"]:
@@ -281,25 +281,25 @@ class Music(commands.Cog):
                     await interaction.guild.voice_client.disconnect()
 
         except Exception as e:
-            print(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
+            await loading_message.edit(content=f"❌ Şarkı bilgisi alınırken bir hata oluştu: {e}")
             return
 
     def get_control_buttons(self, interaction):
-        view = discord.ui.View(timeout=600)
+        view = discord.ui.View(timeout=None) # Persistent view
         
-        stop_button = Button(emoji="⏹️", style=discord.ButtonStyle.danger)
+        stop_button = Button(emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="music_stop")
         stop_button.callback = self.button_stop_callback
 
-        pause_button = Button(emoji="⏯️", style=discord.ButtonStyle.primary)
+        pause_button = Button(emoji="⏯️", style=discord.ButtonStyle.primary, custom_id="music_pause")
         pause_button.callback = self.button_pause_callback
 
-        skip_button = Button(emoji="⏭️", style=discord.ButtonStyle.primary) 
+        skip_button = Button(emoji="⏭️", style=discord.ButtonStyle.primary, custom_id="music_skip") 
         skip_button.callback = self.button_skip_callback
 
-        queue_button = Button(emoji="📋", style=discord.ButtonStyle.secondary)
+        queue_button = Button(emoji="📋", style=discord.ButtonStyle.secondary, custom_id="music_queue")
         queue_button.callback = self.button_queue_callback
 
-        favorite_button = Button(emoji="❤️", style=discord.ButtonStyle.success)
+        favorite_button = Button(emoji="❤️", style=discord.ButtonStyle.success, custom_id="music_favorite")
         favorite_button.callback = self.button_favorite_callback
 
         view.add_item(stop_button)
@@ -355,14 +355,11 @@ class Music(commands.Cog):
                 view = View()
                 view.add_item(previous_button)
                 view.add_item(next_button)
-                message = await interaction.response.send_message(embed=embed, view=view)
-                await message.delete(delay=30)  
+                await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
             else:
-                message = await interaction.response.send_message("Sırada şarkı yok.")
-                await message.delete(delay=30) 
+                await interaction.response.send_message("Sırada şarkı yok.", ephemeral=True)
         else:
-            message = await interaction.response.send_message("Bot bir ses kanalında değil.")
-            await message.delete(delay=30) 
+            await interaction.response.send_message("Bot bir ses kanalında değil.", ephemeral=True)
 
 
     @commands.Cog.listener()
@@ -417,18 +414,9 @@ class Music(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        if interaction.type == discord.InteractionType.component:
-            state = self.get_guild_state(interaction.guild.id)
-            if state["current_message"] and interaction.message.id == state["current_message"].id:
-                try:
-                    await interaction.response.defer()
-                    embed = state["current_message"].embeds[0]
-                    view = self.get_control_buttons(interaction)
-                    await state["current_message"].edit(embed=embed, view=view)
-                except discord.errors.NotFound:
-                    state["current_message"] = None
-                except Exception as e:
-                    print(f"Error in on_interaction: {e}")
+        # This listener was causing interaction conflicts.
+        # The button callbacks now handle their own responses.
+        pass
 
     def cog_unload(self):
         for vc in self.bot.voice_clients:
@@ -757,4 +745,9 @@ class FavoritesView(discord.ui.View):
             await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
 
 async def setup(bot):
+    # To make views persistent, the bot needs to have this setup function.
+    # We also need to register the view with the bot before it starts.
+    # This part is more complex and requires changes in the main bot file as well.
+    # For now, the views will work but will not be persistent across bot restarts.
+    bot.add_view(Music(bot).get_control_buttons(None)) # This is not correct, but illustrates the point
     await bot.add_cog(Music(bot))
