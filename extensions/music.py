@@ -30,7 +30,7 @@ class Music(commands.Cog):
             }
         return self.guild_states[guild_id]
 
-
+    youtube_dl.utils.bug_reports_message = lambda: ''
 
     ytdl_format_options = {
         'format': 'bestaudio/best',
@@ -125,17 +125,25 @@ class Music(commands.Cog):
                     )
                     embed.set_thumbnail(url=source.thumbnail)
                     if state["current_message"]:
-                        await state["current_message"].edit(embed=embed, view=view)
+                        try:
+                            await state["current_message"].edit(embed=embed, view=view)
+                        except discord.errors.NotFound:
+                            state["current_message"] = await interaction.channel.send(embed=embed, view=view)
                     else:
                         state["current_message"] = await interaction.channel.send(embed=embed, view=view)
                 else:
                     await self.prepare_next_song(interaction)
         else:
             state["is_playing"] = False
-            await interaction.guild.voice_client.disconnect()
+            if interaction.guild.voice_client:
+                await interaction.guild.voice_client.disconnect()
             if state["current_message"]:
-                await state["current_message"].delete()
-                state["current_message"] = None
+                try:
+                    await state["current_message"].delete()
+                except discord.errors.NotFound:
+                    pass
+                finally:
+                    state["current_message"] = None
 
     def _after_play_helper(self, interaction, error=None):
         if error:
@@ -181,7 +189,11 @@ class Music(commands.Cog):
         if interaction.guild.voice_client:
             state["queue"].clear()
             interaction.guild.voice_client.stop()
-            await interaction.guild.voice_client.disconnect()
+            try:
+                await interaction.guild.voice_client.disconnect()
+            except asyncio.TimeoutError:
+                print("Voice client disconnect timed out, but state is cleared.")
+            
             await interaction.response.send_message("⏹️ Müzik durduruldu", ephemeral=True)
 
     async def button_favorite_callback(self, interaction: discord.Interaction):
@@ -260,9 +272,13 @@ class Music(commands.Cog):
                 state["queue"].clear()
                 state["is_playing"] = False
                 if state["current_message"]:
-                    await state["current_message"].delete()
+                    try:
+                        await state["current_message"].delete()
+                    except discord.errors.NotFound:
+                        pass
                     state["current_message"] = None
-                await interaction.guild.voice_client.disconnect()
+                if interaction.guild.voice_client:
+                    await interaction.guild.voice_client.disconnect()
 
         except Exception as e:
             print(f"Şarkı bilgisi çıkarılırken hata oluştu: {e}")
@@ -354,16 +370,23 @@ class Music(commands.Cog):
         if member.id != self.bot.user.id:
             return
 
-
         state = self.get_guild_state(member.guild.id)
         if before.channel is not None and after.channel is None:
             state["queue"].clear()
             state["is_playing"] = False
             if state["current_message"]:
-                await state["current_message"].delete()
-                state["current_message"] = None
+                try:
+                    await state["current_message"].delete()
+                except discord.errors.NotFound:
+                    pass # Message already deleted
+                finally:
+                    state["current_message"] = None
+            
             if member.guild.voice_client:
-                await member.guild.voice_client.disconnect()
+                try:
+                    await member.guild.voice_client.disconnect()
+                except Exception as e:
+                    print(f"Error disconnecting in on_voice_state_update: {e}")
 
     def get_voice_state(self, guild):
         if guild.voice_client:
@@ -382,7 +405,10 @@ class Music(commands.Cog):
                     state["queue"].clear()
                     state["is_playing"] = False
                     if state["current_message"]:
-                        await state["current_message"].delete()
+                        try:
+                            await state["current_message"].delete()
+                        except discord.errors.NotFound:
+                            pass
                         state["current_message"] = None
 
     @check_voice_channel.before_loop
@@ -394,10 +420,15 @@ class Music(commands.Cog):
         if interaction.type == discord.InteractionType.component:
             state = self.get_guild_state(interaction.guild.id)
             if state["current_message"] and interaction.message.id == state["current_message"].id:
-                await interaction.response.defer()
-                embed = state["current_message"].embeds[0]
-                view = self.get_control_buttons(interaction)
-                await state["current_message"].edit(embed=embed, view=view)
+                try:
+                    await interaction.response.defer()
+                    embed = state["current_message"].embeds[0]
+                    view = self.get_control_buttons(interaction)
+                    await state["current_message"].edit(embed=embed, view=view)
+                except discord.errors.NotFound:
+                    state["current_message"] = None
+                except Exception as e:
+                    print(f"Error in on_interaction: {e}")
 
     def cog_unload(self):
         for vc in self.bot.voice_clients:
@@ -408,8 +439,8 @@ class Music(commands.Cog):
 
     async def add_favorite(self, user_id: str, guild_id: str, song_title: str, song_url: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            await db.execute('''
-                INSERT OR REPLACE INTO favorite_songs
+            await db.execute ('''
+                INSERT OR REPLACE INTO favorite_songs 
                 (user_id, guild_id, song_title, song_url) 
                 VALUES (?, ?, ?, ?)
             ''', (user_id, guild_id, song_title, song_url))
@@ -417,7 +448,7 @@ class Music(commands.Cog):
 
     async def remove_favorite(self, user_id: str, song_url: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            await db.execute('''
+            await db.execute ('''
                 DELETE FROM favorite_songs 
                 WHERE user_id = ? AND song_url = ?
             ''', (user_id, song_url))
@@ -439,7 +470,7 @@ class Music(commands.Cog):
 
     async def is_favorite(self, user_id: str, song_url: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            async with db.execute('''
+            async with db.execute ('''
                 SELECT 1 FROM favorite_songs 
                 WHERE user_id = ? AND song_url = ?
             ''', (user_id, song_url)) as cursor:
@@ -649,7 +680,7 @@ class Music(commands.Cog):
         guild_id = str(interaction.guild.id)
         try:
             async with aiosqlite.connect('database/economy.db') as db:
-                await db.execute('''
+                await db.execute ('''
                     DELETE FROM favorite_songs 
                     WHERE user_id = ? AND guild_id = ?
                 ''', (user_id, guild_id))
