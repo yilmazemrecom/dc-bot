@@ -405,25 +405,25 @@ class Music(commands.Cog):
 
     async def add_favorite(self, user_id: str, guild_id: str, song_title: str, song_url: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            await db.execute ('''
+            await db.execute('''
                 INSERT OR REPLACE INTO favorite_songs 
                 (user_id, guild_id, song_title, song_url) 
                 VALUES (?, ?, ?, ?)
             ''', (user_id, guild_id, song_title, song_url))
             await db.commit()
 
-    async def remove_favorite(self, user_id: str, song_url: str, guild_id: str):
+    async def remove_favorite(self, user_id: str, song_url: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            await db.execute ('''
+            await db.execute('''
                 DELETE FROM favorite_songs 
-                WHERE user_id = ? AND song_url = ? AND guild_id = ?
-            ''', (user_id, song_url, guild_id))
+                WHERE user_id = ? AND song_url = ?
+            ''', (user_id, song_url))
             await db.commit()
 
     async def get_favorites(self, user_id: str, guild_id: str):
         try:
             async with aiosqlite.connect('database/economy.db') as db:
-                async with db.execute(''''
+                async with db.execute('''
                     SELECT song_title, song_url 
                     FROM favorite_songs 
                     WHERE user_id = ? AND guild_id = ?
@@ -434,12 +434,12 @@ class Music(commands.Cog):
             print(f"Veritabanı hatası (get_favorites): {e}")
             return []
 
-    async def is_favorite(self, user_id: str, song_url: str, guild_id: str):
+    async def is_favorite(self, user_id: str, song_url: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            async with db.execute ('''
+            async with db.execute('''
                 SELECT 1 FROM favorite_songs 
-                WHERE user_id = ? AND song_url = ? AND guild_id = ?
-            ''', (user_id, song_url, guild_id)) as cursor:
+                WHERE user_id = ? AND song_url = ?
+            ''', (user_id, song_url)) as cursor:
                 return await cursor.fetchone() is not None
 
     @discord.app_commands.command(name="favori", description="Şarkıyı favorilere ekler")
