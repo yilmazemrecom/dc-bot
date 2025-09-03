@@ -114,10 +114,9 @@ class Music(commands.Cog):
                 source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
                 if source:
                     view = self.get_control_buttons(interaction)
-                    # ✅ after callback: extra keyword args yutuluyor
                     interaction.guild.voice_client.play(
                         source,
-                        after=lambda e, **_: asyncio.run_coroutine_threadsafe(
+                        after=lambda e: asyncio.run_coroutine_threadsafe(
                             self.play_next_after_callback(interaction),
                             self.bot.loop
                         )
@@ -294,8 +293,9 @@ class Music(commands.Cog):
                 await interaction.followup.send("Playlistte geçerli şarkı bulunamadı.", ephemeral=True)
                 state["queue"].clear()
                 state["is_playing"] = False
-                await state["current_message"].delete()
-                state["current_message"] = None
+                if state["current_message"]:
+                    await state["current_message"].delete()
+                    state["current_message"] = None
                 await interaction.guild.voice_client.disconnect()
 
         except Exception as e:
