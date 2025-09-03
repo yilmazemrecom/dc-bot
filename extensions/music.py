@@ -51,6 +51,13 @@ class Music(commands.Cog):
 
     ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
+    async def _delete_message_after(self, message: discord.Message, delay: int):
+        await asyncio.sleep(delay)
+        try:
+            await message.delete()
+        except discord.errors.NotFound:
+            pass
+
     class YTDLSource(discord.PCMVolumeTransformer):
         def __init__(self, source, *, data, volume=0.5):
             super().__init__(source, volume)
@@ -150,12 +157,13 @@ class Music(commands.Cog):
         asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
 
     async def button_queue_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         state = self.get_guild_state(interaction.guild.id)
         if not interaction.guild.voice_client:
-            await interaction.response.send_message("Bot bir ses kanalında değil!", ephemeral=True)
+            await interaction.followup.send("Bot bir ses kanalında değil!", ephemeral=True)
             return
         if not state["queue"]:
-            await interaction.response.send_message("Sırada şarkı yok!", ephemeral=True)
+            await interaction.followup.send("Sırada şarkı yok!", ephemeral=True)
             return
         embed = discord.Embed(title="🎵 Çalma Listesi", color=discord.Color.blue())
         if state["current_player"]:
@@ -168,22 +176,31 @@ class Music(commands.Cog):
                 queue_text = ""
         if queue_text:
             embed.add_field(name="Sıradaki Şarkılar", value=queue_text, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
     async def button_pause_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        msg_content = ""
         if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
             interaction.guild.voice_client.pause()
-            await interaction.response.send_message("⏸️ Şarkı duraklatıldı", ephemeral=True, delete_after=10)
+            msg_content = "⏸️ Şarkı duraklatıldı"
         elif interaction.guild.voice_client and interaction.guild.voice_client.is_paused():
             interaction.guild.voice_client.resume()
-            await interaction.response.send_message("▶️ Şarkı devam ediyor", ephemeral=True, delete_after=10)
+            msg_content = "▶️ Şarkı devam ediyor"
+        
+        if msg_content:
+            msg = await interaction.followup.send(msg_content, ephemeral=True)
+            self.bot.loop.create_task(self._delete_message_after(msg, 10))
 
     async def button_skip_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         if interaction.guild.voice_client:
             interaction.guild.voice_client.stop()
-            await interaction.response.send_message("⏭️ Şarkı geçildi", ephemeral=True, delete_after=10)
+            msg = await interaction.followup.send("⏭️ Şarkı geçildi", ephemeral=True)
+            self.bot.loop.create_task(self._delete_message_after(msg, 10))
 
     async def button_stop_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         state = self.get_guild_state(interaction.guild.id)
         if interaction.guild.voice_client:
             state["queue"].clear()
@@ -193,10 +210,8 @@ class Music(commands.Cog):
             except asyncio.TimeoutError:
                 print("Voice client disconnect timed out, but state is cleared.")
             
-            try:
-                await interaction.response.send_message("⏹️ Müzik durduruldu", ephemeral=True, delete_after=10)
-            except discord.errors.InteractionResponded:
-                pass
+            msg = await interaction.followup.send("⏹️ Müzik durduruldu", ephemeral=True)
+            self.bot.loop.create_task(self._delete_message_after(msg, 10))
 
     async def button_favorite_callback(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -405,41 +420,33 @@ class Music(commands.Cog):
 
     async def add_favorite(self, user_id: str, guild_id: str, song_title: str, song_url: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            await db.execute('''
-                INSERT OR REPLACE INTO favorite_songs 
+            await db.execute ('''INSERT OR REPLACE INTO favorite_songs 
                 (user_id, guild_id, song_title, song_url) 
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, guild_id, song_title, song_url))
+                VALUES (?, ?, ?, ?)''', (user_id, guild_id, song_title, song_url))
             await db.commit()
 
-    async def remove_favorite(self, user_id: str, song_url: str):
+    async def remove_favorite(self, user_id: str, song_url: str, guild_id: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            await db.execute('''
-                DELETE FROM favorite_songs 
-                WHERE user_id = ? AND song_url = ?
-            ''', (user_id, song_url))
+            await db.execute ('''DELETE FROM favorite_songs 
+                WHERE user_id = ? AND song_url = ? AND guild_id = ?''', (user_id, song_url, guild_id))
             await db.commit()
 
     async def get_favorites(self, user_id: str, guild_id: str):
         try:
             async with aiosqlite.connect('database/economy.db') as db:
-                async with db.execute('''
-                    SELECT song_title, song_url 
+                async with db.execute ('''SELECT song_title, song_url 
                     FROM favorite_songs 
                     WHERE user_id = ? AND guild_id = ?
-                    ORDER BY added_at DESC
-                ''', (user_id, guild_id)) as cursor:
+                    ORDER BY added_at DESC''', (user_id, guild_id)) as cursor:
                     return await cursor.fetchall()
         except Exception as e:
             print(f"Veritabanı hatası (get_favorites): {e}")
             return []
 
-    async def is_favorite(self, user_id: str, song_url: str):
+    async def is_favorite(self, user_id: str, song_url: str, guild_id: str):
         async with aiosqlite.connect('database/economy.db') as db:
-            async with db.execute('''
-                SELECT 1 FROM favorite_songs 
-                WHERE user_id = ? AND song_url = ?
-            ''', (user_id, song_url)) as cursor:
+            async with db.execute ('''SELECT 1 FROM favorite_songs 
+                WHERE user_id = ? AND song_url = ? AND guild_id = ?''', (user_id, song_url, guild_id)) as cursor:
                 return await cursor.fetchone() is not None
 
     @discord.app_commands.command(name="favori", description="Şarkıyı favorilere ekler")
