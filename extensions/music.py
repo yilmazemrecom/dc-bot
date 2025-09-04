@@ -45,9 +45,13 @@ class Music(commands.Cog):
     }
 
     ffmpeg_options = {
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-        'options': '-vn'
-    }
+            'before_options': (
+                '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
+                '-reconnect_at_eof 1 -reconnect_on_network_error 1 '
+                '-reconnect_on_http_error 4xx,5xx'
+            ),
+            'options': '-vn'
+        }
 
     ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
