@@ -151,7 +151,7 @@ async def update_status(bot):
             
         await bot.change_presence(
             activity=discord.Activity(
-                type=discord.ActivityType.listening,
+                type=discord.ActivityType.custom,
                 name=selected_status
             )
         )
