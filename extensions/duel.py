@@ -51,11 +51,11 @@ class DuelGame:
         damage = {"Piyade Tüfeği": ptufek_attack, "Dron": dron_attack, "Roketatar": rocket_attack, "Bıçak": 5, "El Bombası": el_bombasi_attack}
         ammo = self.player1_ammo if self.turn == self.player1 else self.player2_ammo
 
-        if weapon in ammo:
+        if weapon not in ["Piyade Tüfeği", "Bıçak"]:
             if ammo[weapon] > 0:
                 ammo[weapon] -= 1
             else:
-                return f"{self.turn.mention}, {weapon} için yeterli cephaneniz yok!"
+                return f"{self.turn.mention}, {weapon} için yeterli cephaneniz yok!", False
         
         if self.turn == self.player1:
             self.player2_hp -= damage[weapon]
@@ -66,45 +66,39 @@ class DuelGame:
             result = f"{self.turn.mention}, {weapon} ile saldırdı! {self.player1.mention} {damage[weapon]} can kaybetti."
             self.turn = self.player1
 
-        # Check if the game is over
-        if self.player1_hp <= 0 or self.player2_hp <= 0:
+        game_over = self.player1_hp <= 0 or self.player2_hp <= 0
+        if game_over:
             winner = self.player1 if self.player1_hp > 0 else self.player2
             return f"{result}\n\n{winner.mention} kazandı!", True
         return result, False
 
     def heal(self):
-        # Şu anki oyuncunun mermisi ve canını belirle
         if self.turn == self.player1:
             ammo = self.player1_ammo
             hp = self.player1_hp
-            current_player = self.player1  # Bandajı kullanan oyuncuyu belirle
+            current_player = self.player1
         else:
             ammo = self.player2_ammo
             hp = self.player2_hp
-            current_player = self.player2  # Bandajı kullanan oyuncuyu belirle
+            current_player = self.player2
 
-        # Eğer can zaten doluysa
         if hp == 100:
-            return f"{current_player.mention}, canınız zaten dolu!"
+            return f"{current_player.mention}, canınız zaten dolu!", False
 
-        # Eğer oyuncunun bandajı varsa
         if ammo["Bandaj"] > 0:
-            ammo["Bandaj"] -= 1  # Bir bandaj kullan
-            hp = min(100, hp + 25)  # 25 puan iyileştir, ancak 100'ü geçmesin
+            ammo["Bandaj"] -= 1
+            hp = min(100, hp + 25)
 
-            # Oyuncunun canını güncelle
             if self.turn == self.player1:
                 self.player1_hp = hp
             else:
                 self.player2_hp = hp
 
-            # Mesajı döndürmeden önce sırayı değiştir
             self.turn = self.player1 if self.turn == self.player2 else self.player2
 
             return f"{current_player.mention} bir bandaj kullandı ve 25 can kazandı.", False
         else:
-            return f"{current_player.mention}, bandajınız kalmadı!"
-
+            return f"{current_player.mention}, bandajınız kalmadı!", False
 
 
     def surrender(self):
@@ -123,8 +117,8 @@ class DuelView(View):
         embed = self.duel.get_status_embed()
         if game_over:
             await interaction.response.edit_message(content=result, embed=embed, view=None)
-            del duels[self.duel.player1]
-            del duels[self.duel.player2]
+            del duels[self.duel.player1.id]
+            del duels[self.duel.player2.id]
         else:
             await interaction.response.edit_message(content=result, embed=embed, view=self)
 
@@ -133,8 +127,8 @@ class DuelView(View):
         embed = self.duel.get_status_embed()
         if game_over:
             await interaction.response.edit_message(content=result, embed=embed, view=None)
-            del duels[self.duel.player1]
-            del duels[self.duel.player2]
+            del duels[self.duel.player1.id]
+            del duels[self.duel.player2.id]
         else:
             await interaction.response.edit_message(content=result, embed=embed, view=self)
 
@@ -187,8 +181,8 @@ class DuelView(View):
             return
         result = self.duel.surrender()
         await interaction.response.edit_message(content=result, view=None)
-        del duels[self.duel.player1]
-        del duels[self.duel.player2]
+        del duels[self.duel.player1.id]
+        del duels[self.duel.player2.id]
 
 class DuelCog(commands.Cog):
     @commands.cooldown(1, 60, commands.BucketType.user)  
@@ -198,11 +192,11 @@ class DuelCog(commands.Cog):
 
     @discord.app_commands.command(name="pvp", description="Başka bir oyuncuyla düello yaparsınız")
     async def slash_duello(self, interaction: discord.Interaction, kullanıcı: discord.Member):
-        active_duels = sum(1 for duel in duels.values() if interaction.user in (duel.player1, duel.player2))
+        active_duels = sum(1 for duel in duels.values() if interaction.user.id in (duel.player1.id, duel.player2.id))
         if active_duels >= MAX_ACTIVE_DUELS_PER_USER:
             await interaction.response.send_message("Zaten aktif bir düellonuz var. Lütfen mevcut düellonuzu bitirin.", ephemeral=True)
             return      
-        if interaction.user in duels or kullanıcı in duels:
+        if interaction.user.id in duels or kullanıcı.id in duels:
             await interaction.response.send_message("Bir oyuncu zaten bir düello yapıyor!", ephemeral=True)
             return
 
@@ -235,7 +229,7 @@ duel_invites = {}
 
 class DuelInviteView(discord.ui.View):
     def __init__(self, invite):
-        super().__init__(timeout=60)  # 60 saniye sonra davet sona erer
+        super().__init__(timeout=60)
         self.invite = invite
         self.message = None
 
@@ -247,13 +241,13 @@ class DuelInviteView(discord.ui.View):
 
         del duel_invites[self.invite.challenged.id]
         duel = DuelGame(self.invite.challenger, self.invite.challenged)
-        duels[self.invite.challenger] = duel
-        duels[self.invite.challenged] = duel
+        duels[self.invite.challenger.id] = duel
+        duels[self.invite.challenged.id] = duel
 
         view = DuelView(duel)
         embed = duel.get_status_embed()
         await interaction.response.edit_message(content=f"Düello başladı! {self.invite.challenger.mention} ile {self.invite.challenged.mention} savaşıyor!", embed=embed, view=view)
-        self.stop()  # View'ı durdur ve zaman aşımını engelle
+        self.stop()
 
     @discord.ui.button(label="Reddet", style=discord.ButtonStyle.red)
     async def reject(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -271,8 +265,7 @@ class DuelInviteView(discord.ui.View):
         try:
             await self.message.edit(content="Düello daveti zaman aşımına uğradı.", view=None)
         except:
-            pass 
-
+            pass
 
 async def setup(bot):
     await bot.add_cog(DuelCog(bot))

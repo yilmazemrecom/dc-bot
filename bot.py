@@ -55,7 +55,8 @@ async def update_server_count():
                 row = await cursor.fetchone()
                 total_users = row[0] if row[0] is not None else 0
 
-        status = f"{total_users} kullanıcı | /komutlar "
+        #status = f"{total_users} kullanıcı | /komutlar "
+        status = "Bot bakımda, kesintiler olabilir | /komutlar "
         await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening , name=status))
     except Exception as e:
         print(f"Sunucu sayısı güncelleme hatası: {e}")
