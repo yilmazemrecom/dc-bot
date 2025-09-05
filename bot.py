@@ -5,14 +5,15 @@ import aiosqlite
 import os
 import asyncio
 from datetime import datetime
-from util import init_db, load_economy, save_economy, add_user_to_economy, update_user_server, update_existing_table
-
+from util import init_db, update_user_server
+import random
 
 PREFIX = '!'
 
 intents = discord.Intents.default()
 intents.message_content = True
 intents.voice_states = True
+intents.members = True # Üye sayısını doğru almak için bu intent gerekli
 
 bot = commands.Bot(
     command_prefix=PREFIX, 
@@ -24,48 +25,115 @@ bot = commands.Bot(
     enable_debug_events=False
 )
 
-# Voice connection optimizations
-bot._connection._voice_state_timeout = 120.0
+# Botun başlangıç zamanını kaydet
 bot.start_time = datetime.now()
 
+# Bot hazır olduğunda çalışacak olay
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
     try:
-        # Create necessary directories
         os.makedirs('logs', exist_ok=True)
         os.makedirs('config', exist_ok=True)
         os.makedirs('backups', exist_ok=True)
         
-        
         await init_db()
+        
+        # Görevleri başlat
         update_server_info.start()
-        update_server_count.start()
-
+        update_status.start(bot)
+        
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} command(s)")
     except Exception as e:
-        print(f"Error syncing commands: {e}")
+        print(f"Error during bot startup: {e}")
 
-@tasks.loop(minutes=10) 
-async def update_server_count():
+# Botun aktivitesini dinamik olarak değiştirecek görevler
+STATUS_MESSAGES = [
+    "🎸 Gitarları akort ediyor...",
+    "🎶 Müzik listesi hazırlıyor, kimse duymasın.",
+    "🎧 En sevdiğiniz şarkıyı fısıldıyor.",
+    "🎵 Komutlar için /yardım yazın, yoksa çalmaya devam eder.",
+    "💿 Eski kasetleri karıştırıyor...",
+    "📢 Discord'u müzikle dolduruyor!",
+    "Toplam {user_count} kişiyle eğleniyor!",
+    "Sırada {queue_count} şarkı var!",
+]
+
+@tasks.loop(minutes=10)
+async def update_status(bot):
     try:
-        async with aiosqlite.connect('database/economy.db') as db:
-            async with db.execute('SELECT SUM(sunucu_uye_sayisi) FROM sunucular') as cursor:
-                row = await cursor.fetchone()
-                total_users = row[0] if row[0] is not None else 0
+        selected_status = random.choice(STATUS_MESSAGES)
+        
+        # Eğer mesajda dinamik bilgi varsa, gerekli verileri çek
+        if "{user_count}" in selected_status or "{queue_count}" in selected_status:
+            # Toplam kullanıcı sayısını veritabanından çekelim
+            async with aiosqlite.connect('database/economy.db') as db:
+                async with db.execute('SELECT SUM(sunucu_uye_sayisi) FROM sunucular') as cursor:
+                    row = await cursor.fetchone()
+                    total_users = row[0] if row[0] is not None else 0
+            
+            # Sunuculara göre kuyruk uzunluğunu hesapla (Music cog'u yüklendiğinde)
+            total_queue_count = 0
+            music_cog = bot.get_cog("Music")
+            if music_cog:
+                for guild in bot.guilds:
+                    if guild.id in music_cog.guild_states:
+                        state = music_cog.guild_states[guild.id]
+                        total_queue_count += len(state["queue"])
 
-        #status = f"{total_users} kullanıcı | /komutlar "
-        status = "Bot bakımda, kesintiler olabilir | /komutlar "
-        await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening , name=status))
+            # Mesajı güncel verilerle doldur
+            selected_status = selected_status.format(user_count=total_users, queue_count=total_queue_count)
+            
+        await bot.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.listening,
+                name=selected_status
+            )
+        )
+        
     except Exception as e:
-        print(f"Sunucu sayısı güncelleme hatası: {e}")
+        print(f"Durum mesajı güncelleme hatası: {e}")
 
+# Sunucu bilgilerini veritabanında güncelleyecek görev
+@tasks.loop(hours=1)
+async def update_server_info():
+    sunucular = bot.guilds
+    async with aiosqlite.connect('database/economy.db') as db:
+        async with db.execute('SELECT sunucu_id FROM sunucular') as cursor:
+            mevcut_sunucu_ids = [row[0] for row in await cursor.fetchall()]
 
+        bot_sunucu_ids = [sunucu.id for sunucu in sunucular]
+        
+        silinecek_sunucu_ids = set(mevcut_sunucu_ids) - set(bot_sunucu_ids)
+        if silinecek_sunucu_ids:
+            await db.executemany('DELETE FROM sunucular WHERE sunucu_id = ?', 
+                                 [(sunucu_id,) for sunucu_id in silinecek_sunucu_ids])
+            print(f"{len(silinecek_sunucu_ids)} sunucu silindi.")
 
+        for sunucu in sunucular:
+            # Üye sayısını doğru almak için sunucuyu chunk et
+            if not sunucu.chunked:
+                await sunucu.chunk()
+            await db.execute('''
+                INSERT OR REPLACE INTO sunucular (sunucu_id, sunucu_ismi, sunucu_uye_sayisi)
+                VALUES (?, ?, ?)
+            ''', (sunucu.id, sunucu.name, sunucu.member_count))
+        
+        await db.commit()
+    print("Sunucu bilgileri güncellendi.")
 
+# Görevler başlamadan önce botun hazır olmasını bekle
+@update_server_info.before_loop
+async def before_update_server_info():
+    await bot.wait_until_ready()
 
-@bot.tree.command(name="ping", description="Ping komutu - Bot gecikmesini gösterir")
+@update_status.before_loop
+async def before_update_status():
+    await bot.wait_until_ready()
+
+# Slash komutu olarak 'ping'
+@bot.tree.command(name="ping", description="Bot gecikmesini gösterir")
 async def slash_ping(interaction: discord.Interaction):
     import time
     start_time = time.perf_counter()
@@ -107,13 +175,14 @@ async def komutlar(interaction: discord.Interaction):
         color=discord.Color.blue()
     )
 
-    # Müzik Komutları
     music_commands = (
         "**`/cal`** • Şarkı çalar\n"
         "**`/siradakiler`** • Sıradaki şarkıları gösterir\n"
         "**`/favori`** • Şarkıyı favorilere ekler/çıkarır\n"
         "**`/favoriler`** • Favori listesini gösterir\n"
-        "**`/favorical`** • Favorilerden şarkı çalar\n"
+        "**`/favoricallist`** • Favorilerden şarkı çalar\n"
+        "**`/favorisil`** • Favori şarkı siler\n"
+        "**`/favoritümünüsil`** • Tüm favori şarkıları siler\n"
         "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
     )
     embed.add_field(
@@ -121,8 +190,7 @@ async def komutlar(interaction: discord.Interaction):
         value=music_commands, 
         inline=False
     )
-
-    # Ekonomi Komutları
+    
     economy_commands = (
         "**`/bakiye`** • Bakiyenizi gösterir\n"
         "**`/btransfer`** • Para transferi yapar\n"
@@ -135,7 +203,6 @@ async def komutlar(interaction: discord.Interaction):
         inline=False
     )
 
-    # Oyun Komutları
     game_commands = (
         "🎲 **Kumar Oyunları**\n"
         "**`/zar`** • Zar atarsın\n"
@@ -154,7 +221,6 @@ async def komutlar(interaction: discord.Interaction):
         inline=False
     )
 
-    # Eğlence & Diğer
     other_commands = (
         "🎯 **Mini Oyunlar**\n"
         "**`/bilmece`** • Bilmece çözersin\n"
@@ -178,7 +244,6 @@ async def komutlar(interaction: discord.Interaction):
         inline=False
     )
 
-    # Daha detaylı footer
     embed.add_field(
         name="🔗 Bağlantılar",
         value=(
@@ -195,34 +260,7 @@ async def komutlar(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@tasks.loop(hours=1)
-async def update_server_info():
-    sunucular = bot.guilds
-    async with aiosqlite.connect('database/economy.db') as db:
-        async with db.execute('SELECT sunucu_id FROM sunucular') as cursor:
-            mevcut_sunucu_ids = [row[0] for row in await cursor.fetchall()]
-
-        bot_sunucu_ids = [sunucu.id for sunucu in sunucular]
-        
-        silinecek_sunucu_ids = set(mevcut_sunucu_ids) - set(bot_sunucu_ids)
-        if silinecek_sunucu_ids:
-            await db.executemany('DELETE FROM sunucular WHERE sunucu_id = ?', 
-                                 [(sunucu_id,) for sunucu_id in silinecek_sunucu_ids])
-            print(f"{len(silinecek_sunucu_ids)} sunucu silindi.")
-
-        for sunucu in sunucular:
-            await db.execute('''
-                INSERT OR REPLACE INTO sunucular (sunucu_id, sunucu_ismi, sunucu_uye_sayisi)
-                VALUES (?, ?, ?)
-            ''', (sunucu.id, sunucu.name, sunucu.member_count))
-        
-        await db.commit()
-    print("Sunucu bilgileri güncellendi.")
-
-@update_server_info.before_loop
-async def before_update_server_info():
-    await bot.wait_until_ready()
-
+# Extensionları yükle
 async def load_extensions():
     for extension in ['extensions.responses', 
                       'extensions.games', 
@@ -235,97 +273,59 @@ async def load_extensions():
                       'extensions.api_endpoints',
                       'extensions.oyunsecim'
                       ]:
-        await bot.load_extension(extension)
-
-async def cleanup():
-    print("Temizlik işlemleri başlatılıyor...")
-    
-    # Extension'ları kapat
-    print("Extension'lar kapatılıyor...")
-    extensions = list(bot.extensions.keys())
-    for extension in extensions:
         try:
-            await bot.unload_extension(extension)
-            print(f"{extension} kapatıldı")
+            await bot.load_extension(extension)
+            print(f"Extension '{extension}' loaded successfully.")
         except Exception as e:
-            print(f"{extension} kapatılırken hata: {e}")
+            print(f"Failed to load extension {extension}: {e}")
 
-    # Task loop'ları zorla durdur
-    print("Task loop'lar durduruluyor...")
+# Kapatma işlemleri için temizlik fonksiyonu
+async def cleanup():
+    print("Cleanup initiated...")
+    
+    # Task loop'ları durdur
     try:
         update_server_info.stop()
-        update_server_count.stop()
+        update_status.stop()
+        print("Task loops stopped.")
     except Exception as e:
-        print(f"Task loop durdurma hatası: {e}")
+        print(f"Error stopping tasks: {e}")
 
     # Tüm ses bağlantılarını kapat
-    print("Ses bağlantıları kapatılıyor...")
+    print("Disconnecting from voice channels...")
     try:
         for vc in bot.voice_clients:
-            try:
-                await asyncio.wait_for(vc.disconnect(force=True), timeout=1.0)
-            except:
-                pass
+            await vc.disconnect(force=True)
+        print("All voice clients disconnected.")
     except Exception as e:
-        print(f"Ses bağlantıları kapatma hatası: {e}")
+        print(f"Error disconnecting from voice channels: {e}")
 
     # Bot'u kapat
-    print("Bot kapatılıyor...")
+    print("Closing bot...")
     try:
         await bot.close()
     except Exception as e:
-        print(f"Bot kapatma hatası: {e}")
+        print(f"Error closing bot: {e}")
 
-    print("Temizlik işlemleri tamamlandı.")
+    print("Cleanup completed.")
     
-    # Zorla çıkış yap
-    import os, signal
-    os.kill(os.getpid(), signal.SIGTERM)
-
-def force_exit():
-    import os, sys
-    try:
-        sys.exit(0)
-    except:
-        os._exit(0)
-
 async def main():
     try:
         async with bot:
             await load_extensions()
             await bot.start(TOKEN)
     except asyncio.CancelledError:
-        print("Bot kapatılıyor...")
+        print("Bot is shutting down gracefully...")
     except Exception as e:
-        print(f"Beklenmeyen hata: {e}")
+        print(f"An unexpected error occurred: {e}")
     finally:
         await cleanup()
         
-        # Son bir kez daha kalan görevleri kontrol et
-        remaining = [t for t in asyncio.all_tasks() if not t.done() and t is not asyncio.current_task()]
-        if remaining:
-            print(f"Kalan {len(remaining)} görev zorla kapatılıyor...")
-            for task in remaining:
-                task.cancel()
-
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
     try:
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
-        print("\nBot kapatma sinyali alındı...")
-        try:
-            loop.run_until_complete(cleanup())
-        except:
-            pass
-        finally:
-            loop.stop()
-            loop.close()
-            print("Bot güvenli bir şekilde kapatıldı.")
-            # Zorla çıkış yap
-            force_exit()
+        print("\nBot shutdown signal received...")
+        # Graceful shutdown handled by main()
     except Exception as e:
-        print(f"Beklenmeyen hata: {e}")
-        loop.close()
+        print(f"An unexpected error occurred during startup: {e}")

@@ -368,7 +368,7 @@ class Music(commands.Cog):
                         # Kullanıcı yoksa ve 10 dakikadan uzun süredir yalnızsa ayrıl
                         if (datetime.datetime.now() - state["last_user_activity"]).total_seconds() > 600:
                             # Botun hala müzik çalıp çalmadığını kontrol et
-                            if not player.is_playing() and not state["queue"]:
+                            if not player.playing and not state["queue"]:
                                 # Kanalı terk ettiğini belirten bir mesaj gönder
                                 try:
                                     channel_to_send = self.get_guild_state(guild_id)["current_message"].channel
@@ -378,6 +378,7 @@ class Music(commands.Cog):
                                     await asyncio.sleep(60)
                                     await message.delete()
                                 except (AttributeError, discord.errors.NotFound):
+                                    # Mesaj gönderilemezse hata vermeden devam et
                                     pass
 
                                 await player.disconnect()
