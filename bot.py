@@ -341,6 +341,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nBot shutdown signal received...")
-        # Graceful shutdown handled by main()
     except Exception as e:
         print(f"An unexpected error occurred during startup: {e}")
