@@ -41,20 +41,18 @@ class Music(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
         player = payload.player
-        if player is None:  # Player nesnesi yoksa işlem yapma
+        if player is None:
             return
         
-        # Eğer bot zaten kanaldan ayrılıyorsa, daha fazla işlem yapma
-        if not player.is_connected():
+        if not player.connected: 
             return
 
         state = self.get_guild_state(player.guild.id)
         if state["queue"]:
             track = state["queue"].pop(0)
             await player.play(track)
-            state["current_player"] = track
+            state["current_player"] = player.current
             
-            # Mesaj güncelleme kısmı
             if state["current_message"]:
                 try:
                     embed = discord.Embed(
@@ -350,33 +348,24 @@ class Music(commands.Cog):
             return guild.voice_client.channel
         return None
 
-    @tasks.loop(minutes=5)  # 5 dakikada bir kontrol et
+    @tasks.loop(minutes=5)
     async def check_voice_channel(self):
-        for guild_id, state in self.guild_states.items():
-            guild = self.bot.get_guild(guild_id)
-            if guild and guild.voice_client:
-                # Ses kanalındaki üye sayısını al
-                members = guild.voice_client.channel.members
-                
-                # Bot dışında başka bir üye var mı kontrol et
-                other_members = [m for m in members if not m.bot]
-                
-                # Eğer kanalda bot dışında kimse yoksa
-                if not other_members:
-                    player = guild.voice_client
-                    # Botun aktif olarak müzik çalıp çalmadığını veya kuyrukta şarkı olup olmadığını kontrol et
-                    if not player.is_playing() and not state["queue"]:
-                        await player.disconnect()
-                        # State'i temizle
-                        state["is_playing"] = False
-                        state["current_player"] = None
-                        if state["current_message"]:
-                            try:
-                                await state["current_message"].delete()
-                            except discord.errors.NotFound:
-                                pass
-                            finally:
-                                state["current_message"] = None
+        for guild in self.bot.guilds:
+            voice_state = self.get_voice_state(guild)
+            if voice_state and guild.voice_client.connected and len(voice_state.members) == 1:
+                # 600 saniye sonra botu ayır
+                await asyncio.sleep(600)
+                if len(voice_state.members) == 1:
+                    await guild.voice_client.disconnect()
+                    state = self.get_guild_state(guild.id)
+                    state["queue"].clear()
+                    state["is_playing"] = False
+                    if state["current_message"]:
+                        try:
+                            await state["current_message"].delete()
+                        except discord.errors.NotFound:
+                            pass
+                        state["current_message"] = None
 
     @check_voice_channel.before_loop
     async def before_check_voice_channel(self):
