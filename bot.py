@@ -273,15 +273,13 @@ async def load_extensions():
         except Exception as e:
             print(f"Failed to load extension {extension}: {e}")
 
-# Kapatma işlemleri için temizlik fonksiyonu
 async def cleanup():
     print("Temizlik işlemleri başlatılıyor...")
 
     # Wavelink Pool'u temizle ve bağlantıyı kes
     try:
-        if hasattr(wavelink.Pool, 'nodes'):
-            for node in wavelink.Pool.nodes.values():
-                await node.disconnect()
+        if wavelink.Pool.is_connected():
+            await wavelink.Pool.disconnect()
             print("Wavelink nodes disconnected.")
     except Exception as e:
         print(f"Wavelink node'ları kapatılırken hata: {e}")
@@ -295,7 +293,7 @@ async def cleanup():
     except Exception as e:
         print(f"Ses bağlantıları kapatma hatası: {e}")
 
-    # Task loop'ları durdur
+    # Task loop'lar durdur
     print("Task loop'lar durduruluyor...")
     try:
         if 'update_server_info' in globals() and update_server_info.is_running():
@@ -325,7 +323,7 @@ async def cleanup():
         print(f"Bot kapatma hatası: {e}")
 
     print("Temizlik işlemleri tamamlandı.")
-    
+
 async def main():
     try:
         async with bot:
