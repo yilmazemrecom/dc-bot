@@ -31,19 +31,16 @@ class Music(commands.Cog):
 
     async def connect_nodes(self):
         await self.bot.wait_until_ready()
-        await wavelink.NodePool.create_node(
-            bot=self.bot,
-            host='127.0.0.1',
-            port=2333,
-            password=LAVALINK_PASSWORD
-        )
+        nodes = [wavelink.Node(uri=f"http://127.0.0.1:2333", password=LAVALINK_PASSWORD)]
+        await wavelink.Pool.connect(nodes=nodes, client=self.bot)
 
     @commands.Cog.listener()
-    async def on_wavelink_node_ready(self, node: wavelink.Node):
-        print(f'Wavelink Node Ready: {node.identifier}')
+    async def on_wavelink_node_ready(self, payload: wavelink.NodeReadyEventPayload):
+        print(f'Wavelink Node Ready: {payload.node}')
 
     @commands.Cog.listener()
-    async def on_wavelink_track_end(self, player: wavelink.Player, track: wavelink.abc.Playable, reason: wavelink.TrackEndReason):
+    async def on_wavelink_track_end(self, payload: wavelink.TrackEndEventPayload):
+        player = payload.player
         state = self.get_guild_state(player.guild.id)
         if state["queue"]:
             await player.play(state["queue"].pop(0))
@@ -82,7 +79,11 @@ class Music(commands.Cog):
                 description=track.title,
                 color=discord.Color.green()
             )
-            embed.set_thumbnail(url=track.thumbnail)
+            # Thumbnail URL'si wavelink 3.4.1'de farklı olabilir
+            if hasattr(track, 'artwork'):
+                embed.set_thumbnail(url=track.artwork)
+            elif hasattr(track, 'thumbnail'):
+                embed.set_thumbnail(url=track.thumbnail)
             
             if state["current_message"]:
                 try:
@@ -128,10 +129,10 @@ class Music(commands.Cog):
     async def button_pause_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         msg_content = ""
-        if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
+        if interaction.guild.voice_client and interaction.guild.voice_client.playing:
             await interaction.guild.voice_client.pause()
             msg_content = "⏸️ Şarkı duraklatıldı"
-        elif interaction.guild.voice_client and interaction.guild.voice_client.is_paused():
+        elif interaction.guild.voice_client and interaction.guild.voice_client.paused:
             await interaction.guild.voice_client.resume()
             msg_content = "▶️ Şarkı devam ediyor"
         
@@ -190,7 +191,7 @@ class Music(commands.Cog):
         try:
             channel = interaction.user.voice.channel
             if not interaction.guild.voice_client:
-                player = await channel.connect(cls=wavelink.Player)
+                player: wavelink.Player = await channel.connect(cls=wavelink.Player)
                 state["caller"] = interaction.user
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", ephemeral=True)
@@ -212,13 +213,14 @@ class Music(commands.Cog):
                 pass
 
         try:
-            tracks = await wavelink.YouTubeTrack.search(sarki, return_first=False)
+            tracks: wavelink.Search = await wavelink.Playable.search(sarki)
             if not tracks:
                 await loading_message.edit(content="❌ Şarkı bulunamadı.")
                 self.bot.loop.create_task(delete_message(loading_message, 30))
                 return
 
-            if isinstance(tracks, wavelink.YouTubePlaylist):
+            # Playlist kontrolü
+            if isinstance(tracks, wavelink.Playlist):
                 async with state["queue_lock"]:
                     state["queue"].extend(tracks.tracks)
                 
@@ -232,7 +234,7 @@ class Music(commands.Cog):
 
             self.bot.loop.create_task(delete_message(loading_message, 30))
 
-            if not player.is_playing() and not player.is_paused():
+            if not player.playing and not player.paused:
                 await self.play_next(interaction)
                 
         except Exception as e:
@@ -270,7 +272,7 @@ class Music(commands.Cog):
     @discord.app_commands.command(name="siradakiler", description="Sıradaki şarkıları gösterir")
     async def slash_siradakiler(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
-        if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
+        if interaction.guild.voice_client and interaction.guild.voice_client.connected:
             if state["queue"]:
                 pages = []
                 max_chars = 1024
@@ -293,7 +295,6 @@ class Music(commands.Cog):
                 await interaction.response.send_message("Sırada şarkı yok.", ephemeral=True, delete_after=30)
         else:
             await interaction.response.send_message("Bot bir ses kanalında değil.", ephemeral=True, delete_after=30)
-
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -493,7 +494,7 @@ class Music(commands.Cog):
 
         favorites = await self.get_favorites(user_id, guild_id)
         if not favorites:
-            await interaction.response.send_message("📭 Favori listeniz boş!", ephemeral=True)
+            await interaction.response.send_message("🔭 Favori listeniz boş!", ephemeral=True)
             return
 
         await interaction.response.defer()
@@ -508,10 +509,11 @@ class Music(commands.Cog):
                 failed_songs.append(title)
                 continue
             try:
-                tracks = await wavelink.YouTubeTrack.search(url, return_first=True)
+                tracks = await wavelink.Playable.search(url)
                 if tracks:
+                    track = tracks[0] if not isinstance(tracks, wavelink.Playlist) else tracks.tracks[0]
                     async with state["queue_lock"]:
-                        state["queue"].append(tracks[0])
+                        state["queue"].append(track)
                     songs_added += 1
                 else:
                     failed_songs.append(title)
@@ -520,7 +522,7 @@ class Music(commands.Cog):
                 failed_songs.append(title)
 
         if songs_added > 0:
-            if not player.is_playing() and not player.is_paused():
+            if not player.playing and not player.paused:
                 await self.play_next(interaction)
                 
             embed = discord.Embed(
@@ -545,8 +547,6 @@ class Music(commands.Cog):
                 await interaction.guild.voice_client.disconnect()
             state["queue"].clear()
             state["is_playing"] = False
-
-
 
     @discord.app_commands.command(name="favorisil")
     @discord.app_commands.describe(sira_no="Silmek istediğiniz şarkının sıra numarası")
