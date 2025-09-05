@@ -503,6 +503,8 @@ class Music(commands.Cog):
             if not favorites:
                 await interaction.followup.send("Favori şarkı listeniz boş!", ephemeral=True)
                 return
+            
+            # Sayfa oluşturma mantığı
             pages = []
             for i in range(0, len(favorites), 5):
                 embed = discord.Embed(title="🎵 Favori Şarkılarınız", color=discord.Color.blue())
@@ -513,9 +515,12 @@ class Music(commands.Cog):
                 embed.description = song_list
                 embed.set_footer(text="Bir şarkıyı çalmak için /favorical <numara> komutunu kullanın")
                 pages.append(embed)
+            
             if pages:
                 view = self.FavoritesView(pages)
-                await interaction.followup.send(embed=pages[0], view=view, ephemeral=True)
+                # Mesajı ephemeral olarak gönderdikten sonra nesnesini al
+                message = await interaction.followup.send(embed=pages[0], view=view, ephemeral=True)
+                view.message = message  # Bu, view nesnesinin mesajı takip etmesini sağlar
             else:
                 await interaction.followup.send("Favori şarkı listeniz boş!", ephemeral=True)
         except Exception as e:
@@ -562,14 +567,9 @@ class Music(commands.Cog):
                 failed_songs.append(title)
                 continue
             try:
-                # Önce direkt URL ile dene
                 tracks = await wavelink.Playable.search(url)
-                
-                # URL ile bulamazsa şarkı adı ile dene
                 if not tracks:
                     tracks = await wavelink.Playable.search(f"ytsearch:{title}")
-                
-                # Hala bulamazsa YouTube Music ile dene
                 if not tracks:
                     tracks = await wavelink.Playable.search(f"ytmsearch:{title}")
                 
@@ -600,9 +600,12 @@ class Music(commands.Cog):
                 )
                 embed.add_field(name="Eklenemeyen Şarkılar", value=failed_text[:1024], inline=False)
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            # Mesajı gönder ve 60 saniye sonra sil
+            sent_message = await interaction.followup.send(embed=embed)
+            self.bot.loop.create_task(self._delete_message_after(sent_message, 60))
+
         else:
-            await interaction.followup.send(
+            message = await interaction.followup.send(
                 "❌ Hiçbir şarkı yüklenemedi. Şarkılar silinmiş veya engellenmiş olabilir.",
                 ephemeral=True
             )

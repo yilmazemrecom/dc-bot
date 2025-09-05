@@ -127,6 +127,9 @@ STATUS_MESSAGES = [
     "Sadece bir bot değilim",
     "Beni de sevin",
     "Beni de anlayın",
+    "Beni de kanala çağırsanıza",
+    "Babam böyle şarkı çalmayı nerden öğrendi?",
+    "Sana şarkı söyleyim mi?",
 ]
 
 @tasks.loop(minutes=2)
