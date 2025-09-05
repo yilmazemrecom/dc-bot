@@ -10,8 +10,6 @@ import wavelink
 import datetime
 from config import LAVALINK_URI, LAVALINK_PASSWORD
 
-
-
 class Music(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
