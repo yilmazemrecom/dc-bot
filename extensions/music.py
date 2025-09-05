@@ -132,49 +132,56 @@ class Music(commands.Cog):
             return None
 
     async def play_next(self, interaction):
-            state = self.get_guild_state(interaction.guild.id)
-            if state["queue"]:
-                state["current_player"] = state["queue"].pop(0)
-                state["is_playing"] = True
-                async with interaction.channel.typing():
-                    # Source oluşturulurken hata kontrolü
-                    source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
-                    if not source:
-                        # Hatalı şarkıyı atla ve bir sonrakine geç
-                        await interaction.channel.send("❌ Şarkı yüklenemedi, sıradaki şarkıya geçiliyor.")
-                        await self.prepare_next_song(interaction)
-                        return
+        state = self.get_guild_state(interaction.guild.id)
+        
+        # Bot ses kanalında değilse şarkı çalmayı durdur
+        if not interaction.guild.voice_client or not interaction.guild.voice_client.is_connected():
+            state["queue"].clear()
+            state["is_playing"] = False
+            return
 
-                view = self.get_control_buttons(interaction)
-                interaction.guild.voice_client.play(
-                    source,
-                    after=lambda e: self.bot.loop.create_task(self._after_play_helper(interaction, e))
-                )
-                embed = discord.Embed(
-                    title="Şu anda Çalan Şarkı",
-                    description=source.title,
-                    color=discord.Color.green()
-                )
-                embed.set_thumbnail(url=source.thumbnail)
-                
-                if state["current_message"]:
-                    try:
-                        await state["current_message"].delete()
-                    except discord.errors.NotFound:
-                        pass
-                
-                state["current_message"] = await interaction.channel.send(embed=embed, view=view)
-            else:
-                state["is_playing"] = False
-                if interaction.guild.voice_client:
-                    await interaction.guild.voice_client.disconnect()
-                if state["current_message"]:
-                    try:
-                        await state["current_message"].delete()
-                    except discord.errors.NotFound:
-                        pass
-                    finally:
-                        state["current_message"] = None
+        if state["queue"]:
+            state["current_player"] = state["queue"].pop(0)
+            state["is_playing"] = True
+            async with interaction.channel.typing():
+                # Source oluşturulurken hata kontrolü
+                source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
+                if not source:
+                    # Hatalı şarkıyı atla ve bir sonrakine geç
+                    await interaction.channel.send("❌ Şarkı yüklenemedi, sıradaki şarkıya geçiliyor.")
+                    await self.prepare_next_song(interaction)
+                    return
+
+            view = self.get_control_buttons(interaction)
+            interaction.guild.voice_client.play(
+                source,
+                after=lambda e: self.bot.loop.create_task(self._after_play_helper(interaction, e))
+            )
+            embed = discord.Embed(
+                title="Şu anda Çalan Şarkı",
+                description=source.title,
+                color=discord.Color.green()
+            )
+            embed.set_thumbnail(url=source.thumbnail)
+            
+            if state["current_message"]:
+                try:
+                    await state["current_message"].delete()
+                except discord.errors.NotFound:
+                    pass
+            
+            state["current_message"] = await interaction.channel.send(embed=embed, view=view)
+        else:
+            state["is_playing"] = False
+            if interaction.guild.voice_client:
+                await interaction.guild.voice_client.disconnect()
+            if state["current_message"]:
+                try:
+                    await state["current_message"].delete()
+                except discord.errors.NotFound:
+                    pass
+                finally:
+                    state["current_message"] = None
 
     async def _after_play_helper(self, interaction, error=None):
             if error:
