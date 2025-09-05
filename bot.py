@@ -317,6 +317,17 @@ async def load_extensions():
 async def cleanup():
     print("Temizlik işlemleri başlatılıyor...")
 
+    # Task loop'ları durdur
+    print("Task loop'lar durduruluyor...")
+    try:
+        if 'update_server_info' in globals() and update_server_info.is_running():
+            update_server_info.stop()
+        if 'update_status' in globals() and update_status.is_running():
+            update_status.stop()
+        print("Task loop'lar durduruldu.")
+    except Exception as e:
+        print(f"Task loop durdurma hatası: {e}")
+
     # Wavelink Pool'u temizle ve bağlantıyı kes
     try:
         if wavelink.Pool.is_connected():
@@ -334,17 +345,6 @@ async def cleanup():
     except Exception as e:
         print(f"Ses bağlantıları kapatma hatası: {e}")
 
-    # Task loop'lar durdur
-    print("Task loop'lar durduruluyor...")
-    try:
-        if 'update_server_info' in globals() and update_server_info.is_running():
-            update_server_info.stop()
-        if 'update_status' in globals() and update_status.is_running():
-            update_status.stop()
-        print("Task loop'lar durduruldu.")
-    except Exception as e:
-        print(f"Task loop durdurma hatası: {e}")
-
     # Extension'ları kapat
     print("Extension'lar kapatılıyor...")
     extensions = list(bot.extensions.keys())
@@ -354,7 +354,7 @@ async def cleanup():
             print(f"{extension} kapatıldı")
         except Exception as e:
             print(f"{extension} kapatılırken hata: {e}")
-
+            
     # Bot'u kapat
     print("Bot kapatılıyor...")
     try:
