@@ -125,6 +125,12 @@ class Music(commands.Cog):
                         continue
                     else:
                         return None
+                except discord.errors.ClientException as e:
+                    if "Invalid data found when processing input" in str(e):
+                        print(f"Geçersiz veri hatası: {entry['title']} atlanıyor. Hata: {e}")
+                        return None
+                    print(f"Discord Client hatası (deneme {attempt + 1}/{retries}): {e}")
+                    return None
                 except Exception as e:
                     print(f"Genel hata (deneme {attempt + 1}/{retries}): {e}")
                     if attempt < retries - 1:
