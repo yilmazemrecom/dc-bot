@@ -179,7 +179,8 @@ class Music(commands.Cog):
     def _after_play_helper(self, interaction, error=None):
             if error:
                 print(f'Player error: {error}')
-            asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
+            
+            self.bot.loop.create_task(self.play_next(interaction))
 
     async def button_queue_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
