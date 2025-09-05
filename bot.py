@@ -276,8 +276,27 @@ async def load_extensions():
 # Kapatma işlemleri için temizlik fonksiyonu
 async def cleanup():
     print("Temizlik işlemleri başlatılıyor...")
-    
+
+    # Wavelink Pool'u temizle ve bağlantıyı kes
+    try:
+        if hasattr(wavelink.Pool, 'nodes'):
+            for node in wavelink.Pool.nodes.values():
+                await node.disconnect()
+            print("Wavelink nodes disconnected.")
+    except Exception as e:
+        print(f"Wavelink node'ları kapatılırken hata: {e}")
+
+    # Tüm ses bağlantılarını kapat
+    print("Ses bağlantıları kapatılıyor...")
+    try:
+        for vc in bot.voice_clients:
+            await vc.disconnect(force=True)
+        print("Tüm ses bağlantıları kapatıldı.")
+    except Exception as e:
+        print(f"Ses bağlantıları kapatma hatası: {e}")
+
     # Task loop'ları durdur
+    print("Task loop'lar durduruluyor...")
     try:
         if 'update_server_info' in globals() and update_server_info.is_running():
             update_server_info.stop()
@@ -286,23 +305,16 @@ async def cleanup():
         print("Task loop'lar durduruldu.")
     except Exception as e:
         print(f"Task loop durdurma hatası: {e}")
-    
-    # Tüm ses bağlantılarını ve wavelink node'larını kapat
-    print("Ses bağlantıları ve Wavelink node'ları kapatılıyor...")
-    try:
-        # Wavelink pool'unu kapat
-        if wavelink.Pool.connected:
-            for node in wavelink.Pool.nodes.values():
-                await node.disconnect()
-            print("Wavelink nodes disconnected.")
 
-        # Tüm ses bağlantılarını kapat
-        for vc in bot.voice_clients:
-            await vc.disconnect(force=True)
-        print("Tüm ses bağlantıları kapatıldı.")
-
-    except Exception as e:
-        print(f"Ses bağlantıları ve Wavelink node'ları kapatma hatası: {e}")
+    # Extension'ları kapat
+    print("Extension'lar kapatılıyor...")
+    extensions = list(bot.extensions.keys())
+    for extension in extensions:
+        try:
+            await bot.unload_extension(extension)
+            print(f"{extension} kapatıldı")
+        except Exception as e:
+            print(f"{extension} kapatılırken hata: {e}")
 
     # Bot'u kapat
     print("Bot kapatılıyor...")
@@ -313,13 +325,6 @@ async def cleanup():
         print(f"Bot kapatma hatası: {e}")
 
     print("Temizlik işlemleri tamamlandı.")
-
-    # Tüm kalan asyncio görevlerini iptal et
-    pending = asyncio.all_tasks()
-    for task in pending:
-        task.cancel()
-    
-    await asyncio.gather(*pending, return_exceptions=True)
     
 async def main():
     try:
