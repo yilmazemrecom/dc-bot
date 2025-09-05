@@ -108,7 +108,6 @@ async def update_server_info():
             print(f"{len(silinecek_sunucu_ids)} sunucu silindi.")
 
         for sunucu in sunucular:
-            # Intents.members olmadan üye sayısını güncellemek için sunucu nesnesindeki değeri kullanıyoruz
             await db.execute('''
                 INSERT OR REPLACE INTO sunucular (sunucu_id, sunucu_ismi, sunucu_uye_sayisi)
                 VALUES (?, ?, ?)
@@ -225,7 +224,6 @@ async def komutlar(interaction: discord.Interaction):
         "**`/cekilisler`** • Aktif çekilişleri görürsün\n\n"
         "📢 **Bildirimler**\n"
         "**`/oyunbildirimac`** • İndirim bildirimleri\n"
-        "**`/haberbildirimac`** • Haber bildirimleri\n\n"
         "⏰ **Hatırlatıcı**\n"
         "**`/hatirlatici_ekle`** • Hatırlatıcı eklersin\n"
         "**`/hatirlaticilar`** • Hatırlatıcıları görürsün\n"
@@ -341,5 +339,6 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nBot shutdown signal received...")
+        asyncio.run(main())
     except Exception as e:
         print(f"An unexpected error occurred during startup: {e}")
