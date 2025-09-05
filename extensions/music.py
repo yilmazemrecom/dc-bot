@@ -148,7 +148,7 @@ class Music(commands.Cog):
                 view = self.get_control_buttons(interaction)
                 interaction.guild.voice_client.play(
                     source,
-                    after=lambda e: asyncio.run_coroutine_threadsafe(self._after_play_helper(interaction, e), self.bot.loop)
+                    after=lambda e: self.bot.loop.create_task(self._after_play_helper(interaction, e))
                 )
                 embed = discord.Embed(
                     title="Şu anda Çalan Şarkı",
@@ -179,12 +179,7 @@ class Music(commands.Cog):
     def _after_play_helper(self, interaction, error=None):
             if error:
                 print(f'Player error: {error}')
-                # Hata durumunda, mevcut şarkıyı atlayıp bir sonraki şarkıyı denemesi için
-                # play_next metodunu tekrar çağırıyoruz.
-                asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
-            else:
-                # Şarkı normal bir şekilde bittiğinde
-                asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
+            asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
 
     async def button_queue_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
