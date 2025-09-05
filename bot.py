@@ -14,7 +14,6 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.voice_states = True
 
-
 bot = commands.Bot(
     command_prefix=PREFIX, 
     intents=intents,
@@ -65,15 +64,12 @@ async def update_status(bot):
     try:
         selected_status = random.choice(STATUS_MESSAGES)
         
-        # Eğer mesajda dinamik bilgi varsa, gerekli verileri çek
         if "{user_count}" in selected_status or "{queue_count}" in selected_status:
-            # Toplam kullanıcı sayısını veritabanından çekelim
             async with aiosqlite.connect('database/economy.db') as db:
                 async with db.execute('SELECT SUM(sunucu_uye_sayisi) FROM sunucular') as cursor:
                     row = await cursor.fetchone()
                     total_users = row[0] if row[0] is not None else 0
             
-            # Sunuculara göre kuyruk uzunluğunu hesapla (Music cog'u yüklendiğinde)
             total_queue_count = 0
             music_cog = bot.get_cog("Music")
             if music_cog:
@@ -82,7 +78,6 @@ async def update_status(bot):
                         state = music_cog.guild_states[guild.id]
                         total_queue_count += len(state["queue"])
 
-            # Mesajı güncel verilerle doldur
             selected_status = selected_status.format(user_count=total_users, queue_count=total_queue_count)
             
         await bot.change_presence(
@@ -112,9 +107,7 @@ async def update_server_info():
             print(f"{len(silinecek_sunucu_ids)} sunucu silindi.")
 
         for sunucu in sunucular:
-            # Üye sayısını doğru almak için sunucuyu chunk et
-            if not sunucu.chunked:
-                await sunucu.chunk()
+            # Intents.members olmadan üye sayısını güncellemek için sunucu nesnesindeki değeri kullanıyoruz
             await db.execute('''
                 INSERT OR REPLACE INTO sunucular (sunucu_id, sunucu_ismi, sunucu_uye_sayisi)
                 VALUES (?, ?, ?)
