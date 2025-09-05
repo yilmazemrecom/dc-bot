@@ -93,26 +93,43 @@ class Music(commands.Cog):
                 return [data]
 
         @classmethod
-        async def create_source(cls, entry, *, loop=None):
+        async def create_source(cls, entry, *, loop=None, retries=3):
             loop = loop or asyncio.get_event_loop()
-            try:
-                data = await loop.run_in_executor(
-                    None,
-                    functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
-                )
-                if not data:
-                    return None
-                if 'url' in data:
+            
+            for attempt in range(retries):
+                try:
+                    data = await loop.run_in_executor(
+                        None,
+                        functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
+                    )
+                    
+                    if not data or 'url' not in data:
+                        if attempt < retries - 1:
+                            print(f"URL bilgisi alınamadı, {attempt + 1}. yeniden deneniyor...")
+                            await asyncio.sleep(2 ** attempt)  # Gecikme süresi artırılarak yeniden deneniyor
+                            continue
+                        return None
+                    
                     return cls(discord.FFmpegPCMAudio(data['url'], **Music.ffmpeg_options), data=data)
-                else:
-                    raise Exception(f"Unable to extract info for URL: {entry['url']}")
-            except youtube_dl.utils.DownloadError as e:
-                print(f"Hata yakalandı: {e}")
-                if "MESAM / MSG CS" in str(e) or "unavailable" in str(e):
-                    print(f"Skipping blocked video: {entry['url']}")
+                    
+                except youtube_dl.utils.DownloadError as e:
+                    print(f"Download hatası (deneme {attempt + 1}/{retries}): {e}")
+                    if "MESAM / MSG CS" in str(e) or "unavailable" in str(e):
+                        print(f"Engellenen video atlanıyor: {entry['url']}")
+                        return None
+                    elif attempt < retries - 1:
+                        await asyncio.sleep(3 + attempt * 2)
+                        continue
+                    elif attempt == retries - 1:
+                        return None
+                except Exception as e:
+                    print(f"Genel hata (deneme {attempt + 1}/{retries}): {e}")
+                    if attempt < retries - 1:
+                        await asyncio.sleep(1 + attempt)
+                        continue
                     return None
-                else:
-                    raise
+            
+            return None
 
     async def play_next(self, interaction):
         state = self.get_guild_state(interaction.guild.id)
@@ -156,9 +173,14 @@ class Music(commands.Cog):
                     state["current_message"] = None
 
     def _after_play_helper(self, interaction, error=None):
-        if error:
-            print(f'Player error: {error}')
-        asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
+            if error:
+                print(f'Player error: {error}')
+                # Hata durumunda, mevcut şarkıyı atlayıp bir sonraki şarkıyı denemesi için
+                # play_next metodunu tekrar çağırıyoruz.
+                asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
+            else:
+                # Şarkı normal bir şekilde bittiğinde
+                asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
 
     async def button_queue_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
