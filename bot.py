@@ -41,7 +41,7 @@ async def on_ready():
         
         # Görevleri başlat
         update_server_info.start()
-        update_status.start(bot)
+        update_status.start(bot)  # Görevi burada başlatıyoruz
         
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} command(s)")
@@ -128,6 +128,7 @@ STATUS_MESSAGES = [
     "Beni de sevin",
     "Beni de anlayın",
 ]
+
 @tasks.loop(minutes=2)
 async def update_status(bot):
     try:
@@ -150,10 +151,7 @@ async def update_status(bot):
             selected_status = selected_status.format(user_count=total_users, queue_count=total_queue_count)
             
         await bot.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.custom,
-                name=selected_status
-            )
+            activity=discord.CustomActivity(name=selected_status)
         )
         
     except Exception as e:
@@ -292,6 +290,7 @@ async def komutlar(interaction: discord.Interaction):
         "**`/cekilisler`** • Aktif çekilişleri görürsün\n\n"
         "📢 **Bildirimler**\n"
         "**`/oyunbildirimac`** • İndirim bildirimleri\n"
+        "**`/haberbildirimac`** • Haber bildirimleri\n\n"
         "⏰ **Hatırlatıcı**\n"
         "**`/hatirlatici_ekle`** • Hatırlatıcı eklersin\n"
         "**`/hatirlaticilar`** • Hatırlatıcıları görürsün\n"
@@ -342,17 +341,6 @@ async def load_extensions():
 async def cleanup():
     print("Temizlik işlemleri başlatılıyor...")
 
-    # Task loop'ları durdur
-    print("Task loop'lar durduruluyor...")
-    try:
-        if 'update_server_info' in globals() and update_server_info.is_running():
-            update_server_info.stop()
-        if 'update_status' in globals() and update_status.is_running():
-            update_status.stop()
-        print("Task loop'lar durduruldu.")
-    except Exception as e:
-        print(f"Task loop durdurma hatası: {e}")
-
     # Wavelink Pool'u temizle ve bağlantıyı kes
     try:
         if wavelink.Pool.is_connected():
@@ -369,6 +357,17 @@ async def cleanup():
         print("Tüm ses bağlantıları kapatıldı.")
     except Exception as e:
         print(f"Ses bağlantıları kapatma hatası: {e}")
+
+    # Task loop'lar durdur
+    print("Task loop'lar durduruluyor...")
+    try:
+        if 'update_server_info' in globals() and update_server_info.is_running():
+            update_server_info.stop()
+        if 'update_status' in globals() and update_status.is_running():
+            update_status.stop()
+        print("Task loop'lar durduruldu.")
+    except Exception as e:
+        print(f"Task loop durdurma hatası: {e}")
 
     # Extension'ları kapat
     print("Extension'lar kapatılıyor...")
