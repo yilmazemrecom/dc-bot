@@ -7,6 +7,7 @@ import asyncio
 from datetime import datetime
 from util import init_db, update_user_server
 import random
+import wavelink
 
 PREFIX = '!'
 
