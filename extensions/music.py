@@ -43,8 +43,28 @@ class Music(commands.Cog):
         player = payload.player
         state = self.get_guild_state(player.guild.id)
         if state["queue"]:
-            await player.play(state["queue"].pop(0))
-            state["current_player"] = player.current
+            track = state["queue"].pop(0)
+            await player.play(track)
+            state["current_player"] = track
+            
+            # Burada Discord mesajını güncelleyelim
+            if state["current_message"]:
+                try:
+                    embed = discord.Embed(
+                        title="Şu anda Çalan Şarkı",
+                        description=track.title,
+                        color=discord.Color.green()
+                    )
+                    # Thumbnail URL'si wavelink'in yeni sürümlerinde farklı olabilir
+                    if track.artwork:
+                        embed.set_thumbnail(url=track.artwork)
+                    elif track.thumbnail:
+                        embed.set_thumbnail(url=track.thumbnail)
+                        
+                    view = self.get_control_buttons(state["current_message"])
+                    await state["current_message"].edit(embed=embed, view=view)
+                except discord.errors.NotFound:
+                    pass
         else:
             await player.disconnect()
             state["is_playing"] = False
