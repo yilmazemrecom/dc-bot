@@ -25,7 +25,8 @@ class Music(commands.Cog):
                 "is_playing": False,
                 "queue_lock": Lock(),
                 "caller": None,
-                "current_message": None
+                "current_message": None,
+                "last_user_activity": datetime.datetime.now()
             }
         return self.guild_states[guild_id]
 
@@ -350,22 +351,48 @@ class Music(commands.Cog):
 
     @tasks.loop(minutes=5)
     async def check_voice_channel(self):
-        for guild in self.bot.guilds:
-            voice_state = self.get_voice_state(guild)
-            if voice_state and guild.voice_client.connected and len(voice_state.members) == 1:
-                # 600 saniye sonra botu ayır
-                await asyncio.sleep(600)
-                if len(voice_state.members) == 1:
-                    await guild.voice_client.disconnect()
-                    state = self.get_guild_state(guild.id)
-                    state["queue"].clear()
-                    state["is_playing"] = False
-                    if state["current_message"]:
-                        try:
-                            await state["current_message"].delete()
-                        except discord.errors.NotFound:
-                            pass
-                        state["current_message"] = None
+        for guild_id, state in self.guild_states.items():
+            guild = self.bot.get_guild(guild_id)
+            if guild and guild.voice_client and guild.voice_client.connected:
+                voice_channel = guild.voice_client.channel
+                if voice_channel:
+                    # Bot dışında kanaldaki kullanıcıları bul
+                    human_members = [m for m in voice_channel.members if not m.bot]
+                    
+                    player = guild.voice_client
+                    
+                    if human_members:
+                        # Kullanıcı varsa zaman damgasını güncelle
+                        state["last_user_activity"] = datetime.datetime.now()
+                    else:
+                        # Kullanıcı yoksa ve 10 dakikadan uzun süredir yalnızsa ayrıl
+                        if (datetime.datetime.now() - state["last_user_activity"]).total_seconds() > 600:
+                            # Botun hala müzik çalıp çalmadığını kontrol et
+                            if not player.is_playing() and not state["queue"]:
+                                # Kanalı terk ettiğini belirten bir mesaj gönder
+                                try:
+                                    channel_to_send = self.get_guild_state(guild_id)["current_message"].channel
+                                    message = await channel_to_send.send("Kanalda kimse kalmadı. Ayrılıyorum...")
+                                    
+                                    # 1 dakika sonra mesajı sil
+                                    await asyncio.sleep(60)
+                                    await message.delete()
+                                except (AttributeError, discord.errors.NotFound):
+                                    pass
+
+                                await player.disconnect()
+                                
+                                # Durumu ve kuyruğu temizle
+                                state["queue"].clear()
+                                state["is_playing"] = False
+                                state["current_player"] = None
+                                if state["current_message"]:
+                                    try:
+                                        await state["current_message"].delete()
+                                    except discord.errors.NotFound:
+                                        pass
+                                    finally:
+                                        state["current_message"] = None
 
     @check_voice_channel.before_loop
     async def before_check_voice_channel(self):
