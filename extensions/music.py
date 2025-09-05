@@ -1,22 +1,23 @@
 import discord
 from discord.ext import commands, tasks
-import yt_dlp as youtube_dl
+from discord.ui import Button, View
 import asyncio
 from asyncio import Lock
-from discord.ui import Button, View
-import datetime
 import aiosqlite
 from typing import Optional
 from discord import app_commands
-import random
-import functools
+import wavelink
+import datetime
+from config import LAVALINK_URI, LAVALINK_PASSWORD
+
 
 
 class Music(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.guild_states = {}
         self.check_voice_channel.start()
+        self.bot.loop.create_task(self.connect_nodes())
 
     def get_guild_state(self, guild_id):
         if guild_id not in self.guild_states:
@@ -30,30 +31,36 @@ class Music(commands.Cog):
             }
         return self.guild_states[guild_id]
 
-    ytdl_format_options = {
-        'format': 'bestaudio/best',
-        'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
-        'restrictfilenames': True,
-        'nocertificate': True,
-        'ignoreerrors': True,
-        'logtostderr': False,
-        'quiet': True,
-        'no_warnings': True,
-        'default_search': 'auto',
-        'source_address': '0.0.0.0',
-        'extract_flat': 'in_playlist'
-    }
+    async def connect_nodes(self):
+        await self.bot.wait_until_ready()
+        await wavelink.NodePool.create_node(
+            bot=self.bot,
+            host='127.0.0.1',
+            port=2333,
+            password=LAVALINK_PASSWORD
+        )
 
-    ffmpeg_options = {
-            'before_options': (
-                '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5 '
-                '-reconnect_at_eof 1 -reconnect_on_network_error 1 '
-                '-reconnect_on_http_error 4xx,5xx'
-            ),
-            'options': '-vn'
-        }
+    @commands.Cog.listener()
+    async def on_wavelink_node_ready(self, node: wavelink.Node):
+        print(f'Wavelink Node Ready: {node.identifier}')
 
-    ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
+    @commands.Cog.listener()
+    async def on_wavelink_track_end(self, player: wavelink.Player, track: wavelink.Track, reason):
+        state = self.get_guild_state(player.guild.id)
+        if state["queue"]:
+            await player.play(state["queue"].pop(0))
+            state["current_player"] = player.current
+        else:
+            await player.disconnect()
+            state["is_playing"] = False
+            state["current_player"] = None
+            if state["current_message"]:
+                try:
+                    await state["current_message"].delete()
+                except discord.errors.NotFound:
+                    pass
+                finally:
+                    state["current_message"] = None
 
     async def _delete_message_after(self, message: discord.Message, delay: int):
         await asyncio.sleep(delay)
@@ -62,107 +69,22 @@ class Music(commands.Cog):
         except discord.errors.NotFound:
             pass
 
-    class YTDLSource(discord.PCMVolumeTransformer):
-        def __init__(self, source, *, data, volume=0.5):
-            super().__init__(source, volume)
-            self.data = data
-            self.title = data.get('title')
-            self.url = data.get('url')
-            self.thumbnail = data.get('thumbnail')
-
-        @classmethod
-        async def from_url(cls, url, *, loop=None, stream=False):
-            loop = loop or asyncio.get_event_loop()
-            try:
-                data = await loop.run_in_executor(
-                    None,
-                    functools.partial(Music.ytdl.extract_info, url, download=not stream)
-                )
-            except Exception as e:
-                print(f"YTDL from_url hata: {e}")
-                return None
-
-            if not data:
-                return None
-
-            if 'entries' in data:
-                entries = data['entries']
-                entries = [entry for entry in entries if entry and entry.get('url')] 
-                return entries
-            else:
-                return [data]
-
-        @classmethod
-        async def create_source(cls, entry, *, loop=None, retries=3):
-            loop = loop or asyncio.get_event_loop()
-            
-            for attempt in range(retries):
-                try:
-                    data = await loop.run_in_executor(
-                        None,
-                        functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
-                    )
-                    
-                    if not data or 'url' not in data:
-                        if attempt < retries - 1:
-                            print(f"URL bilgisi alınamadı, {attempt + 1}. yeniden deneniyor...")
-                            await asyncio.sleep(2 ** attempt)  # Gecikme süresi artırılarak yeniden deneniyor
-                            continue
-                        return None
-                    
-                    return cls(discord.FFmpegPCMAudio(data['url'], **Music.ffmpeg_options), data=data)
-                    
-                except youtube_dl.utils.DownloadError as e:
-                    print(f"Download hatası (deneme {attempt + 1}/{retries}): {e}")
-                    if "MESAM / MSG CS" in str(e) or "unavailable" in str(e):
-                        print(f"Engellenen video atlanıyor: {entry['url']}")
-                        return None
-                    elif attempt < retries - 1:
-                        await asyncio.sleep(3 + attempt * 2)
-                        continue
-                    elif attempt == retries - 1:
-                        return None
-                except Exception as e:
-                    print(f"Genel hata (deneme {attempt + 1}/{retries}): {e}")
-                    if attempt < retries - 1:
-                        await asyncio.sleep(1 + attempt)
-                        continue
-                    return None
-            
-            return None
-
     async def play_next(self, interaction):
         state = self.get_guild_state(interaction.guild.id)
-        
-        # Bot ses kanalında değilse şarkı çalmayı durdur
-        if not interaction.guild.voice_client or not interaction.guild.voice_client.is_connected():
-            state["queue"].clear()
-            state["is_playing"] = False
-            return
-
         if state["queue"]:
-            state["current_player"] = state["queue"].pop(0)
+            track = state["queue"].pop(0)
+            await interaction.guild.voice_client.play(track)
             state["is_playing"] = True
-            async with interaction.channel.typing():
-                # Source oluşturulurken hata kontrolü
-                source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
-                if not source:
-                    # Hatalı şarkıyı atla ve bir sonrakine geç
-                    await interaction.channel.send("❌ Şarkı yüklenemedi, sıradaki şarkıya geçiliyor.")
-                    await self.prepare_next_song(interaction)
-                    return
-
+            state["current_player"] = track
+            
             view = self.get_control_buttons(interaction)
-            interaction.guild.voice_client.play(
-                source,
-                after=lambda e: self.bot.loop.create_task(self._after_play_helper(interaction, e))
-            )
+            
             embed = discord.Embed(
                 title="Şu anda Çalan Şarkı",
-                description=source.title,
+                description=track.title,
                 color=discord.Color.green()
             )
-            embed.set_thumbnail(url=source.thumbnail)
+            embed.set_thumbnail(url=track.thumbnail)
             
             if state["current_message"]:
                 try:
@@ -183,12 +105,6 @@ class Music(commands.Cog):
                 finally:
                     state["current_message"] = None
 
-    async def _after_play_helper(self, interaction, error=None):
-            if error:
-                print(f'Player error: {error}')
-                
-            await self.play_next(interaction)
-
     async def button_queue_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         state = self.get_guild_state(interaction.guild.id)
@@ -200,10 +116,10 @@ class Music(commands.Cog):
             return
         embed = discord.Embed(title="🎵 Çalma Listesi", color=discord.Color.blue())
         if state["current_player"]:
-            embed.add_field(name="Şimdi Çalıyor", value=f"▶️ {state['current_player']['title']}", inline=False)
+            embed.add_field(name="Şimdi Çalıyor", value=f"▶️ {state['current_player'].title}", inline=False)
         queue_text = ""
         for idx, song in enumerate(state["queue"], 1):
-            queue_text += f"{idx}. {song['title']}\n"
+            queue_text += f"{idx}. {song.title}\n"
             if idx % 10 == 0:
                 embed.add_field(name=f"Sıradaki Şarkılar ({idx-9}-{idx})", value=queue_text, inline=False)
                 queue_text = ""
@@ -215,10 +131,10 @@ class Music(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         msg_content = ""
         if interaction.guild.voice_client and interaction.guild.voice_client.is_playing():
-            interaction.guild.voice_client.pause()
+            await interaction.guild.voice_client.pause()
             msg_content = "⏸️ Şarkı duraklatıldı"
         elif interaction.guild.voice_client and interaction.guild.voice_client.is_paused():
-            interaction.guild.voice_client.resume()
+            await interaction.guild.voice_client.resume()
             msg_content = "▶️ Şarkı devam ediyor"
         
         if msg_content:
@@ -228,7 +144,7 @@ class Music(commands.Cog):
     async def button_skip_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if interaction.guild.voice_client:
-            interaction.guild.voice_client.stop()
+            await interaction.guild.voice_client.stop()
             msg = await interaction.followup.send("⏭️ Şarkı geçildi", ephemeral=True)
             self.bot.loop.create_task(self._delete_message_after(msg, 10))
 
@@ -237,11 +153,8 @@ class Music(commands.Cog):
         state = self.get_guild_state(interaction.guild.id)
         if interaction.guild.voice_client:
             state["queue"].clear()
-            interaction.guild.voice_client.stop()
-            try:
-                await interaction.guild.voice_client.disconnect()
-            except asyncio.TimeoutError:
-                print("Voice client disconnect timed out, but state is cleared.")
+            await interaction.guild.voice_client.disconnect()
+            state["is_playing"] = False
             
             msg = await interaction.followup.send("⏹️ Müzik durduruldu", ephemeral=True)
             self.bot.loop.create_task(self._delete_message_after(msg, 10))
@@ -259,11 +172,11 @@ class Music(commands.Cog):
         guild_id = str(interaction.guild.id)
         try:
             await interaction.response.defer(ephemeral=True)
-            if await self.is_favorite(user_id, current_song['url'], guild_id):
-                await self.remove_favorite(user_id, current_song['url'], guild_id)
+            if await self.is_favorite(user_id, current_song.uri, guild_id):
+                await self.remove_favorite(user_id, current_song.uri, guild_id)
                 await interaction.followup.send("💔 Şarkı favorilerden çıkarıldı!", ephemeral=True)
             else:
-                await self.add_favorite(user_id, guild_id, current_song['title'], current_song['url'])
+                await self.add_favorite(user_id, guild_id, current_song.title, current_song.uri)
                 await interaction.followup.send("❤️ Şarkı favorilere eklendi!", ephemeral=True)
         except Exception as e:
             print(f"Favori işlemi hatası: {e}")
@@ -272,32 +185,20 @@ class Music(commands.Cog):
             except:
                 pass
 
-    async def prepare_next_song(self, interaction):
-        state = self.get_guild_state(interaction.guild.id)
-        async with state["queue_lock"]:
-            while state["queue"]:
-                next_song = state["queue"].pop(0)
-                source = await self.YTDLSource.create_source(next_song, loop=self.bot.loop)
-                if source:
-                    state["queue"].insert(0, next_song)
-                    state["is_playing"] = True
-                    await self.play_next(interaction)
-                    break
-            else:
-                state["is_playing"] = False
-
     @discord.app_commands.command(name="cal", description="Şarkı çalar")
-    @discord.app_commands.describe(sarki="Şarkı adı veya URL (Sadece YouTube linki giriniz)")
+    @discord.app_commands.describe(sarki="Şarkı adı veya URL")
     async def slash_cal(self, interaction: discord.Interaction, sarki: str):
         state = self.get_guild_state(interaction.guild.id)
         try:
             channel = interaction.user.voice.channel
-            if interaction.guild.voice_client is None:
-                await channel.connect()
+            if not interaction.guild.voice_client:
+                player = await channel.connect(cls=wavelink.Player)
                 state["caller"] = interaction.user
             elif interaction.guild.voice_client.channel != channel:
                 await interaction.response.send_message(f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", ephemeral=True)
                 return
+            else:
+                player = interaction.guild.voice_client
         except AttributeError:
             await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
             return
@@ -313,28 +214,35 @@ class Music(commands.Cog):
                 pass
 
         try:
-            entries = await self.YTDLSource.from_url(sarki, loop=self.bot.loop, stream=True)
-            if entries:
+            tracks = await wavelink.YouTubeTrack.search(sarki, return_first=False)
+            if not tracks:
+                await loading_message.edit(content="❌ Şarkı bulunamadı.")
+                self.bot.loop.create_task(delete_message(loading_message, 30))
+                return
+
+            if isinstance(tracks, wavelink.YouTubePlaylist):
                 async with state["queue_lock"]:
-                    state["queue"].extend(entries)
+                    state["queue"].extend(tracks.tracks)
                 
-                await loading_message.edit(content=f"✅ **{len(entries)}** şarkı sıraya eklendi.")
-                self.bot.loop.create_task(delete_message(loading_message, 30))
-
-                if not state["is_playing"]:
-                    await self.prepare_next_song(interaction)
+                await loading_message.edit(content=f"✅ Playlist sıraya eklendi. **{len(tracks.tracks)}** şarkı.")
             else:
-                await loading_message.edit(content="❌ Playlistte veya linkte geçerli şarkı bulunamadı.")
-                self.bot.loop.create_task(delete_message(loading_message, 30))
-                if not state["queue"] and interaction.guild.voice_client:
-                    await interaction.guild.voice_client.disconnect()
+                track = tracks[0]
+                async with state["queue_lock"]:
+                    state["queue"].append(track)
 
+                await loading_message.edit(content=f"✅ **{track.title}** sıraya eklendi.")
+
+            self.bot.loop.create_task(delete_message(loading_message, 30))
+
+            if not player.is_playing() and not player.is_paused():
+                await self.play_next(interaction)
+                
         except Exception as e:
             await loading_message.edit(content=f"❌ Şarkı bilgisi alınırken bir hata oluştu.")
             self.bot.loop.create_task(delete_message(loading_message, 30))
             print(f"Error in slash_cal: {e}")
             return
-
+            
     def get_control_buttons(self, interaction):
         view = discord.ui.View(timeout=None) 
         
@@ -365,13 +273,12 @@ class Music(commands.Cog):
     async def slash_siradakiler(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
         if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
-            valid_queue = [entry for entry in state["queue"] if entry.get('title') and entry.get('url')] 
-            if valid_queue:
+            if state["queue"]:
                 pages = []
                 max_chars = 1024
                 current_message = ""
-                for idx, entry in enumerate(valid_queue):
-                    next_entry = f"{idx + 1}. {entry['title']}\n"
+                for idx, track in enumerate(state["queue"]):
+                    next_entry = f"{idx + 1}. {track.title}\n"
                     if len(current_message) + len(next_entry) > max_chars:
                         pages.append(current_message)
                         current_message = next_entry
@@ -491,11 +398,11 @@ class Music(commands.Cog):
         current_song = state["current_player"]
         user_id = str(interaction.user.id)
         guild_id = str(interaction.guild.id)
-        if await self.is_favorite(user_id, current_song['url'], guild_id):
-            await self.remove_favorite(user_id, current_song['url'], guild_id)
+        if await self.is_favorite(user_id, current_song.uri, guild_id):
+            await self.remove_favorite(user_id, current_song.uri, guild_id)
             await interaction.response.send_message("Şarkı favorilerden çıkarıldı!", ephemeral=True)
         else:
-            await self.add_favorite(user_id, guild_id, current_song['title'], current_song['url'])
+            await self.add_favorite(user_id, guild_id, current_song.title, current_song.uri)
             await interaction.response.send_message("Şarkı favorilere eklendi!", ephemeral=True)
 
     class FavoritesView(discord.ui.View):
@@ -570,8 +477,8 @@ class Music(commands.Cog):
 
         try:
             channel = interaction.user.voice.channel
-            if interaction.guild.voice_client is None:
-                await channel.connect()
+            if not interaction.guild.voice_client:
+                player = await channel.connect(cls=wavelink.Player)
                 state = self.get_guild_state(interaction.guild.id)
                 state["caller"] = interaction.user
             elif interaction.guild.voice_client.channel != channel:
@@ -580,6 +487,8 @@ class Music(commands.Cog):
                     ephemeral=True
                 )
                 return
+            else:
+                player = interaction.guild.voice_client
         except AttributeError:
             await interaction.response.send_message("📢 Lütfen önce bir ses kanalına katılın.", ephemeral=True)
             return
@@ -601,11 +510,11 @@ class Music(commands.Cog):
                 failed_songs.append(title)
                 continue
             try:
-                entries = await self.YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
-                if entries and len(entries) > 0:
+                tracks = await wavelink.YouTubeTrack.search(url, return_first=True)
+                if tracks:
                     async with state["queue_lock"]:
-                        state["queue"].append(entries[0])
-                        songs_added += 1
+                        state["queue"].append(tracks[0])
+                    songs_added += 1
                 else:
                     failed_songs.append(title)
             except Exception as e:
@@ -613,10 +522,9 @@ class Music(commands.Cog):
                 failed_songs.append(title)
 
         if songs_added > 0:
-            if not state["is_playing"]:
-                state["is_playing"] = True
-                await self.prepare_next_song(interaction)
-
+            if not player.is_playing() and not player.is_paused():
+                await self.play_next(interaction)
+                
             embed = discord.Embed(
                 title="🎶 Favoriler Eklendi",
                 description=f"✅ {songs_added} şarkı sıraya başarıyla eklendi.",
