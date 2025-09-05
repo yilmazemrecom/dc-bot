@@ -43,7 +43,7 @@ class Music(commands.Cog):
         print(f'Wavelink Node Ready: {node.identifier}')
 
     @commands.Cog.listener()
-    async def on_wavelink_track_end(self, player: wavelink.Player, track: wavelink.Track, reason):
+    async def on_wavelink_track_end(self, player: wavelink.Player, track: wavelink.abc.Playable, reason: wavelink.TrackEndReason):
         state = self.get_guild_state(player.guild.id)
         if state["queue"]:
             await player.play(state["queue"].pop(0))
@@ -67,7 +67,7 @@ class Music(commands.Cog):
         except discord.errors.NotFound:
             pass
 
-    async def play_next(self, interaction):
+    async def play_next(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
         if state["queue"]:
             track = state["queue"].pop(0)
@@ -398,10 +398,10 @@ class Music(commands.Cog):
         guild_id = str(interaction.guild.id)
         if await self.is_favorite(user_id, current_song.uri, guild_id):
             await self.remove_favorite(user_id, current_song.uri, guild_id)
-            await interaction.response.send_message("Şarkı favorilerden çıkarıldı!", ephemeral=True)
+            await interaction.response.send_message("💔 Şarkı favorilerden çıkarıldı!", ephemeral=True)
         else:
             await self.add_favorite(user_id, guild_id, current_song.title, current_song.uri)
-            await interaction.response.send_message("Şarkı favorilere eklendi!", ephemeral=True)
+            await interaction.response.send_message("❤️ Şarkı favorilere eklendi!", ephemeral=True)
 
     class FavoritesView(discord.ui.View):
         def __init__(self, pages, current_page=0):
