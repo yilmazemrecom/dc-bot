@@ -509,7 +509,17 @@ class Music(commands.Cog):
                 failed_songs.append(title)
                 continue
             try:
+                # Önce direkt URL ile dene
                 tracks = await wavelink.Playable.search(url)
+                
+                # URL ile bulamazsa şarkı adı ile dene
+                if not tracks:
+                    tracks = await wavelink.Playable.search(f"ytsearch:{title}")
+                
+                # Hala bulamazsa YouTube Music ile dene
+                if not tracks:
+                    tracks = await wavelink.Playable.search(f"ytmsearch:{title}")
+                
                 if tracks:
                     track = tracks[0] if not isinstance(tracks, wavelink.Playlist) else tracks.tracks[0]
                     async with state["queue_lock"]:
