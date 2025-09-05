@@ -11,7 +11,6 @@ from discord import app_commands
 import random
 import functools
 
-
 class Music(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -96,31 +95,35 @@ class Music(commands.Cog):
         async def create_source(cls, entry, *, loop=None, retries=3):
             loop = loop or asyncio.get_event_loop()
             
+            url_to_extract = entry.get('url')
+            is_live = entry.get('is_live', False)
+
             for attempt in range(retries):
                 try:
-                    data = await loop.run_in_executor(
-                        None,
-                        functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
-                    )
-                    
-                    if not data or 'url' not in data:
-                        if attempt < retries - 1:
-                            print(f"URL bilgisi alınamadı, {attempt + 1}. yeniden deneniyor...")
-                            await asyncio.sleep(2 ** attempt)  # Gecikme süresi artırılarak yeniden deneniyor
-                            continue
-                        return None
-                    
-                    return cls(discord.FFmpegPCMAudio(data['url'], **Music.ffmpeg_options), data=data)
-                    
+                    if not url_to_extract or is_live:
+                        data = await loop.run_in_executor(
+                            None,
+                            functools.partial(Music.ytdl.extract_info, entry['url'], download=False)
+                        )
+                        if not data or 'url' not in data:
+                            if attempt < retries - 1:
+                                print(f"URL bilgisi alınamadı, {attempt + 1}. yeniden deneniyor...")
+                                await asyncio.sleep(2)
+                                continue
+                            return None
+                        url_to_extract = data['url']
+
+                    return cls(discord.FFmpegPCMAudio(url_to_extract, **Music.ffmpeg_options), data=entry)
+                        
                 except youtube_dl.utils.DownloadError as e:
-                    print(f"Download hatası (deneme {attempt + 1}/{retries}): {e}")
-                    if "MESAM / MSG CS" in str(e) or "unavailable" in str(e):
-                        print(f"Engellenen video atlanıyor: {entry['url']}")
+                    if "MESAM / MSG CS" in str(e) or "unavailable" in str(e) or "blocked" in str(e):
+                        print(f"Engellenen veya geçersiz video atlanıyor: {entry['title']} ({entry['url']})")
                         return None
-                    elif attempt < retries - 1:
+                    print(f"Download hatası (deneme {attempt + 1}/{retries}): {e}")
+                    if attempt < retries - 1:
                         await asyncio.sleep(3 + attempt * 2)
                         continue
-                    elif attempt == retries - 1:
+                    else:
                         return None
                 except Exception as e:
                     print(f"Genel hata (deneme {attempt + 1}/{retries}): {e}")
@@ -136,33 +139,37 @@ class Music(commands.Cog):
         if state["queue"]:
             state["current_player"] = state["queue"].pop(0)
             state["is_playing"] = True
+            
             async with interaction.channel.typing():
                 source = await self.YTDLSource.create_source(state["current_player"], loop=self.bot.loop)
-                if source:
-                    view = self.get_control_buttons(interaction)
-                    interaction.guild.voice_client.play(
-                        source,
-                        after=functools.partial(self._after_play_helper, interaction)
-                    )
-                    embed = discord.Embed(
-                        title="Şu anda Çalan Şarkı",
-                        description=source.title,
-                        color=discord.Color.green()
-                    )
-                    embed.set_thumbnail(url=source.thumbnail)
-                    
-                    if state["current_message"]:
-                        try:
-                            await state["current_message"].delete()
-                        except discord.errors.NotFound:
-                            pass
-                    
-                    state["current_message"] = await interaction.channel.send(embed=embed, view=view)
-                else:
-                    await self.prepare_next_song(interaction)
+            
+            if source:
+                view = self.get_control_buttons(interaction)
+                
+                interaction.guild.voice_client.play(
+                    source,
+                    after=lambda e: self.bot.loop.create_task(self._after_play_helper(interaction, e))
+                )
+                
+                embed = discord.Embed(
+                    title="Şu anda Çalan Şarkı",
+                    description=source.title,
+                    color=discord.Color.green()
+                )
+                embed.set_thumbnail(url=source.thumbnail)
+                
+                if state["current_message"]:
+                    try:
+                        await state["current_message"].delete()
+                    except discord.errors.NotFound:
+                        pass
+                
+                state["current_message"] = await interaction.channel.send(embed=embed, view=view)
+            else:
+                await self.prepare_next_song(interaction)
         else:
             state["is_playing"] = False
-            if interaction.guild.voice_client:
+            if interaction.guild.voice_client and interaction.guild.voice_client.is_connected():
                 await interaction.guild.voice_client.disconnect()
             if state["current_message"]:
                 try:
@@ -172,15 +179,11 @@ class Music(commands.Cog):
                 finally:
                     state["current_message"] = None
 
-    def _after_play_helper(self, interaction, error=None):
-            if error:
-                print(f'Player error: {error}')
-                # Hata durumunda, mevcut şarkıyı atlayıp bir sonraki şarkıyı denemesi için
-                # play_next metodunu tekrar çağırıyoruz.
-                asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
-            else:
-                # Şarkı normal bir şekilde bittiğinde
-                asyncio.run_coroutine_threadsafe(self.play_next(interaction), self.bot.loop)
+    async def _after_play_helper(self, interaction, error=None):
+        if error:
+            print(f'Player error: {error}')
+        
+        await self.play_next(interaction)
 
     async def button_queue_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -747,10 +750,6 @@ class FavoritesView(discord.ui.View):
             self.current_page -= 1
             self.update_buttons()
             await interaction.response.edit_message(embed=self.pages[self.current_page], view=self)
-    
-    @discord.ui.button(label="Sayfa 1/1", style=discord.ButtonStyle.secondary, disabled=True)
-    async def page_counter(self, interaction: discord.Interaction, button: discord.ui.Button):
-        pass
     
     @discord.ui.button(emoji="▶️", style=discord.ButtonStyle.primary)
     async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
