@@ -49,38 +49,92 @@ class Music(commands.Cog):
             return
 
         state = self.get_guild_state(player.guild.id)
+        
+        # Kullanıcı aktivitesini güncelle
+        state["last_user_activity"] = datetime.datetime.now()
+        
+        # Sırada şarkı varsa
         if state["queue"]:
-            track = state["queue"].pop(0)
-            await player.play(track)
-            state["current_player"] = player.current
-            
-            if state["current_message"]:
-                try:
-                    embed = discord.Embed(
-                        title="Şu anda Çalan Şarkı",
-                        description=track.title,
-                        color=discord.Color.green()
-                    )
-                    if track.artwork:
-                        embed.set_thumbnail(url=track.artwork)
-                    elif track.thumbnail:
-                        embed.set_thumbnail(url=track.thumbnail)
+            try:
+                track = state["queue"].pop(0)
+                await player.play(track)
+                state["current_player"] = player.current  # player.current kullan, track değil
+                state["is_playing"] = True
+                
+                if state["current_message"]:
+                    try:
+                        embed = discord.Embed(
+                            title="Şu anda Çalan Şarkı",
+                            description=track.title,
+                            color=discord.Color.green()
+                        )
+                        if track.artwork:
+                            embed.set_thumbnail(url=track.artwork)
+                        elif track.thumbnail:
+                            embed.set_thumbnail(url=track.thumbnail)
+                            
+                        view = self.get_control_buttons(state["current_message"])
+                        await state["current_message"].edit(embed=embed, view=view)
+                    except discord.errors.NotFound:
+                        # Mesaj silinmişse yeni mesaj oluştur
+                        try:
+                            channel = player.channel if hasattr(player, 'channel') else player.guild.text_channels[0]
+                            state["current_message"] = await channel.send(embed=embed, view=view)
+                        except:
+                            state["current_message"] = None
+                    except Exception as e:
+                        print(f"Mesaj güncelleme hatası: {e}")
                         
-                    view = self.get_control_buttons(state["current_message"])
-                    await state["current_message"].edit(embed=embed, view=view)
-                except discord.errors.NotFound:
-                    pass
+            except wavelink.LavalinkException as e:
+                print(f"Wavelink hatası - şarkı çalınamadı: {e}")
+                # Bu şarkı çalınamazsa bir sonrakini dene
+                if state["queue"]:
+                    # Kuyruktaki sonraki şarkıyı dene
+                    await self.on_wavelink_track_end(payload)
+                else:
+                    # Kuyruk boşsa bağlantıyı kes
+                    await player.disconnect()
+                    state["is_playing"] = False
+                    state["current_player"] = None
+                    if state["current_message"]:
+                        try:
+                            await state["current_message"].delete()
+                        except discord.errors.NotFound:
+                            pass
+                        finally:
+                            state["current_message"] = None
+            except Exception as e:
+                print(f"Track end hatası: {e}")
+                # Genel hata durumunda da sonraki şarkıyı dene
+                if state["queue"]:
+                    await self.on_wavelink_track_end(payload)
+                else:
+                    await player.disconnect()
+                    state["is_playing"] = False
+                    state["current_player"] = None
+                    if state["current_message"]:
+                        try:
+                            await state["current_message"].delete()
+                        except discord.errors.NotFound:
+                            pass
+                        finally:
+                            state["current_message"] = None
         else:
-            await player.disconnect()
-            state["is_playing"] = False
-            state["current_player"] = None
-            if state["current_message"]:
-                try:
-                    await state["current_message"].delete()
-                except discord.errors.NotFound:
-                    pass
-                finally:
-                    state["current_message"] = None
+            # Kuyruk boşsa
+            try:
+                await player.disconnect()
+            except Exception as e:
+                print(f"Disconnect hatası: {e}")
+            finally:
+                state["is_playing"] = False
+                state["current_player"] = None
+                if state["current_message"]:
+                    try:
+                        await state["current_message"].delete()
+                    except discord.errors.NotFound:
+                        pass
+                    finally:
+                        state["current_message"] = None
 
     async def _delete_message_after(self, message: discord.Message, delay: int):
         await asyncio.sleep(delay)
@@ -91,41 +145,77 @@ class Music(commands.Cog):
 
     async def play_next(self, interaction: discord.Interaction):
         state = self.get_guild_state(interaction.guild.id)
+        player = interaction.guild.voice_client
+        
+        if not player or not player.connected:
+            state["is_playing"] = False
+            return
+        
         if state["queue"]:
-            track = state["queue"].pop(0)
-            await interaction.guild.voice_client.play(track)
-            state["is_playing"] = True
-            state["current_player"] = track
-            
-            view = self.get_control_buttons(interaction)
-            
-            embed = discord.Embed(
-                title="Şu anda Çalan Şarkı",
-                description=track.title,
-                color=discord.Color.green()
-            )
-            # Thumbnail URL'si wavelink 3.4.1'de farklı olabilir
-            if hasattr(track, 'artwork'):
-                embed.set_thumbnail(url=track.artwork)
-            elif hasattr(track, 'thumbnail'):
-                embed.set_thumbnail(url=track.thumbnail)
-            
-            if state["current_message"]:
+            try:
+                track = state["queue"].pop(0)
+                await player.play(track)
+                state["is_playing"] = True
+                state["current_player"] = player.current
+                
+                view = self.get_control_buttons(interaction)
+                
+                embed = discord.Embed(
+                    title="Şu anda Çalan Şarkı",
+                    description=track.title,
+                    color=discord.Color.green()
+                )
+                
+                if hasattr(track, 'artwork') and track.artwork:
+                    embed.set_thumbnail(url=track.artwork)
+                elif hasattr(track, 'thumbnail') and track.thumbnail:
+                    embed.set_thumbnail(url=track.thumbnail)
+                
+                if state["current_message"]:
+                    try:
+                        await state["current_message"].delete()
+                    except discord.errors.NotFound:
+                        pass
+                    except Exception as e:
+                        print(f"Mesaj silme hatası: {e}")
+                
                 try:
-                    await state["current_message"].delete()
-                except discord.errors.NotFound:
-                    pass
-            
-            state["current_message"] = await interaction.channel.send(embed=embed, view=view)
+                    state["current_message"] = await interaction.channel.send(embed=embed, view=view)
+                except Exception as e:
+                    print(f"Mesaj gönderme hatası: {e}")
+                    state["current_message"] = None
+                    
+            except wavelink.LavalinkException as e:
+                print(f"Wavelink play hatası: {e}")
+                # Bu şarkı oynatılamazsa bir sonrakini dene
+                if state["queue"]:
+                    await self.play_next(interaction)
+                else:
+                    state["is_playing"] = False
+                    if player and player.connected:
+                        await player.disconnect()
+            except Exception as e:
+                print(f"Play next genel hatası: {e}")
+                if state["queue"]:
+                    await self.play_next(interaction)
+                else:
+                    state["is_playing"] = False
+                    if player and player.connected:
+                        await player.disconnect()
         else:
             state["is_playing"] = False
-            if interaction.guild.voice_client:
-                await interaction.guild.voice_client.disconnect()
+            if player and player.connected:
+                try:
+                    await player.disconnect()
+                except Exception as e:
+                    print(f"Disconnect hatası: {e}")
             if state["current_message"]:
                 try:
                     await state["current_message"].delete()
                 except discord.errors.NotFound:
                     pass
+                except Exception as e:
+                    print(f"Mesaj silme hatası: {e}")
                 finally:
                     state["current_message"] = None
 
@@ -213,22 +303,28 @@ class Music(commands.Cog):
     @discord.app_commands.describe(sarki="Şarkı adı veya URL")
     async def slash_cal(self, interaction: discord.Interaction, sarki: str):
         state = self.get_guild_state(interaction.guild.id)
+        
+        await interaction.response.defer()
+        
         try:
             channel = interaction.user.voice.channel
             if not interaction.guild.voice_client:
                 player: wavelink.Player = await channel.connect(cls=wavelink.Player)
                 state["caller"] = interaction.user
             elif interaction.guild.voice_client.channel != channel:
-                await interaction.response.send_message(f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", ephemeral=True)
+                await interaction.followup.send(
+                    f"Şu anda başka bir kanalda bulunuyorum ({interaction.guild.voice_client.channel.name}). Müsait olunca tekrar çağırın.", 
+                    ephemeral=True
+                )
                 return
             else:
                 player = interaction.guild.voice_client
         except AttributeError:
-            await interaction.response.send_message("Bir ses kanalında değilsiniz.", ephemeral=True)
+            await interaction.followup.send("Bir ses kanalında değilsiniz.", ephemeral=True)
             return
 
-        await interaction.response.send_message(f"🎶 **{sarki}** aranıyor...")
-        loading_message = await interaction.original_response()
+        # Defer ettikten sonra followup kullan
+        loading_message = await interaction.followup.send(f"🎶 **{sarki}** aranıyor...")
 
         async def delete_message(message, delay):
             await asyncio.sleep(delay)
