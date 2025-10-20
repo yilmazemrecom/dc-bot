@@ -244,12 +244,18 @@ class Music(commands.Cog):
     async def button_pause_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         msg_content = ""
-        if interaction.guild.voice_client and interaction.guild.voice_client.playing:
-            await interaction.guild.voice_client.pause()
+        player = interaction.guild.voice_client
+        
+        if player and player.playing:
+            # Wavelink 3.x için pause(True) kullanılır
+            await player.pause(True)
             msg_content = "⏸️ Şarkı duraklatıldı"
-        elif interaction.guild.voice_client and interaction.guild.voice_client.paused:
-            await interaction.guild.voice_client.resume()
+        elif player and player.paused:
+            # Wavelink 3.x için pause(False) ile devam ettirilir
+            await player.pause(False)
             msg_content = "▶️ Şarkı devam ediyor"
+        else:
+            msg_content = "❌ Çalan bir şarkı yok"
         
         if msg_content:
             msg = await interaction.followup.send(msg_content, ephemeral=True)
