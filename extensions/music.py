@@ -246,14 +246,16 @@ class Music(commands.Cog):
         msg_content = ""
         player = interaction.guild.voice_client
         
-        if player and player.playing:
-            # Wavelink 3.x için pause(True) kullanılır
-            await player.pause(True)
-            msg_content = "⏸️ Şarkı duraklatıldı"
-        elif player and player.paused:
-            # Wavelink 3.x için pause(False) ile devam ettirilir
+        if not player:
+            msg_content = "❌ Bot ses kanalında değil"
+        elif player.paused:
+            # Duraklatılmışsa devam ettir
             await player.pause(False)
             msg_content = "▶️ Şarkı devam ediyor"
+        elif player.playing:
+            # Çalıyorsa duraklat
+            await player.pause(True)
+            msg_content = "⏸️ Şarkı duraklatıldı"
         else:
             msg_content = "❌ Çalan bir şarkı yok"
         
